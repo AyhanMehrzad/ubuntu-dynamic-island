@@ -1,0 +1,24 @@
+{
+  "name": "ubuntu-dynamic-island",
+  "version": "1.0.0",
+  "description": "Apple-Style Dynamic Island with Dio AI Agent for Ubuntu",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron . --no-sandbox",
+    "dev": "electron . --no-sandbox",
+    "serve": "npx -y serve src -p 35420"
+  },
+  "keywords": [
+    "dynamic-island",
+    "ubuntu",
+    "dio",
+    "ai-agent",
+    "gemini",
+    "openrouter"
+  ],
+  "author": "Dynamic Island Team",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^44.5.1"
+  }
+}

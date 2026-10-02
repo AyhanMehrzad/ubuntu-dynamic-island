@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ubuntu Dynamic Island - Dio AI</title>
+  <link rel="stylesheet" href="css/island.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body class="theme-dark">
+  <!-- Reusable Colorful Gradient Definitions for Cute Vector Icons -->
+  <svg style="position: absolute; width: 0; height: 0; overflow: hidden;" aria-hidden="true">
+    <defs>
+      <linearGradient id="grad-cyan" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#38bdf8" />
+        <stop offset="100%" stop-color="#6366f1" />
+      </linearGradient>
+      <linearGradient id="grad-pink" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#ec4899" />
+        <stop offset="100%" stop-color="#f43f5e" />
+      </linearGradient>
+      <linearGradient id="grad-purple" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#a855f7" />
+        <stop offset="100%" stop-color="#6366f1" />
+      </linearGradient>
+      <linearGradient id="grad-mint" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#34d399" />
+        <stop offset="100%" stop-color="#059669" />
+      </linearGradient>
+      <linearGradient id="grad-amber" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#fbbf24" />
+        <stop offset="100%" stop-color="#ea580c" />
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <div id="island-app">
+    <!-- Main Dynamic Island Element -->
+    <div id="island" class="dynamic-island state-compact">
+      
+      <!-- ================= COMPACT VIEW ================= -->
+      <div id="view-compact" class="island-view" style="display: flex; width: 100%; align-items: center; justify-content: space-between;">
+        
+        <!-- 1. Default Status Capsule (Dio Mascot + Stats + Time) -->
+        <div id="compact-default-container" style="display: flex; width: 100%; align-items: center; justify-content: space-between;">
+          <div class="jarvis-indicator" title="Dio Agent Status">
+            <div class="cute-mascot" id="mascot-avatar" title="Dio - Say 'Hey Dio' or click to expand">
+              <div class="mascot-antenna"></div>
+              <div class="mascot-face">
+                <div class="mascot-eye left"></div>
+                <div class="mascot-mouth"></div>
+                <div class="mascot-eye right"></div>
+              </div>
+            </div>
+            <span id="compact-status-text" style="font-size: 12px; font-weight: 600; color: var(--text-main); letter-spacing: -0.2px;">Dio</span>
+          </div>
+
+          <div class="compact-center">
+            <div class="compact-stats" id="compact-metrics">
+              <span class="stat-chip">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="url(#grad-cyan)" stroke-width="2.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                <span id="metric-cpu">CPU --%</span>
+              </span>
+              <span class="stat-chip">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="url(#grad-purple)" stroke-width="2.5"><path d="M6 19v-3M10 19v-7M14 19v-4M18 19v-8"/></svg>
+                <span id="metric-ram">RAM --%</span>
+              </span>
+            </div>
+            <div id="compact-time" style="font-weight: 600; font-size: 12.5px; font-family: -apple-system, BlinkMacSystemFont, monospace;">--:--</div>
+          </div>
+
+          <div class="compact-right">
+            <button id="btn-quick-voice" class="pill-action-btn" title="Speak to Dio" style="color: #ec4899;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="url(#grad-pink)" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
+            <button id="btn-expand-island" class="pill-action-btn" title="Expand Island">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Active Media Capsule (Spotify / YouTube Playing) -->
+        <div id="compact-media-container" style="display: none; width: 100%; align-items: center; justify-content: space-between; gap: 8px;">
+          <div class="compact-media-left" style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; cursor: pointer;" id="compact-media-click-area">
+            <div class="compact-media-art" id="compact-media-art" title="Playing Media • Click for Notchbar">
+              <div class="compact-art-img" id="compact-art-img">🎵</div>
+              <div class="compact-media-badge" id="compact-media-badge"></div>
+            </div>
+            <div class="compact-media-text" style="display: flex; flex-direction: column; overflow: hidden; min-width: 0;">
+              <span id="compact-media-title" class="compact-media-title" style="font-size: 11.5px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2;">Track Title</span>
+              <span id="compact-media-artist" class="compact-media-artist" style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2;">Artist • Spotify</span>
+            </div>
+          </div>
+          
+          <div class="compact-media-right" style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+            <!-- Dancing Audio Equalizer Bars -->
+            <div class="compact-equalizer" id="compact-equalizer" title="Now Playing">
+              <div class="eq-bar"></div>
+              <div class="eq-bar"></div>
+              <div class="eq-bar"></div>
+              <div class="eq-bar"></div>
+            </div>
+            <button id="btn-compact-media-prev" class="pill-action-btn" title="Previous / Before Track" style="color: #94a3b8; width: 20px; height: 24px; padding: 0;">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="3"/></svg>
+            </button>
+            <button id="btn-compact-media-play" class="pill-action-btn" title="Play / Pause" style="color: #38bdf8; width: 22px; height: 24px; padding: 0;">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" id="compact-play-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </button>
+            <button id="btn-compact-media-stop" class="pill-action-btn" title="Stop Playback" style="color: #f87171; width: 20px; height: 24px; padding: 0;">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+            </button>
+            <button id="btn-compact-media-next" class="pill-action-btn" title="Next Track" style="color: #94a3b8; width: 20px; height: 24px; padding: 0;">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="3"/></svg>
+            </button>
+            <button id="btn-compact-media-expand" class="pill-action-btn" title="Open Full Notchbar" style="width: 18px; height: 24px; padding: 0; color: #64748b;">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ================= QUICK BAR VIEW ================= -->
+      <div id="view-quick" class="island-view" style="display: none; width: 100%; align-items: center; justify-content: space-between;">
+        <div class="quick-actions-row">
+          <div class="cute-mascot" style="margin-right: 2px;">
+            <div class="mascot-antenna"></div>
+            <div class="mascot-face">
+              <div class="mascot-eye left"></div>
+              <div class="mascot-mouth"></div>
+              <div class="mascot-eye right"></div>
+            </div>
+          </div>
+          <button class="quick-btn" id="qbtn-prompt">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="url(#grad-purple)" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v6M8 11h6" stroke="url(#grad-cyan)" stroke-width="2"/></svg>
+            Prompt
+          </button>
+          <button class="quick-btn" id="qbtn-voice" style="border-color: rgba(236, 72, 153, 0.25);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="url(#grad-pink)" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+            Voice
+          </button>
+          <button class="quick-btn" id="qbtn-stats">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="url(#grad-mint)" stroke-width="2.5"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M7 14l3-3 3 3 4-4"/></svg>
+            Stats
+          </button>
+          <button class="quick-btn" id="qbtn-notion">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="url(#grad-amber)" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+            Notion
+          </button>
+        </div>
+        <div class="quick-actions-row">
+          <button class="icon-btn" id="qbtn-settings" title="Settings">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="url(#grad-cyan)" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+          <button class="icon-btn" id="qbtn-collapse" title="Collapse">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- ================= PROMPT & VOICE VIEW ================= -->
+      <div id="view-prompt" class="island-view" style="display: none; width: 100%;">
+        <div class="prompt-container">
+          <div class="prompt-orb" id="prompt-orb" title="Dio Voice Agent">
+            <div class="audio-waveform" id="waveform">
+              <div class="waveform-bar"></div>
+              <div class="waveform-bar"></div>
+              <div class="waveform-bar"></div>
+              <div class="waveform-bar"></div>
+              <div class="waveform-bar"></div>
+            </div>
+          </div>
+          <div class="prompt-input-wrapper">
+            <input type="text" id="prompt-input" class="prompt-input" placeholder="Ask Dio (e.g. 'open vscode', 'check memory', 'open notion')..." autocomplete="off">
+            <button id="prompt-mic-btn" class="prompt-voice-btn" title="Voice Input">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+            </button>
+          </div>
+          <button id="prompt-expand-btn" class="icon-btn" title="Open Full Hub">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          </button>
+          <button id="prompt-close-btn" class="icon-btn" title="Close">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- ================= NOTCHBAR (APPLE PHONE STYLE MEDIA & VOLUME) VIEW ================= -->
+      <div id="view-notch" class="island-view" style="display: none; width: 100%; height: 100%;">
+        <div class="notch-container">
+          <!-- Top: Track info & controls -->
+          <div class="notch-top-row">
+            <div class="notch-media-info">
+              <div class="album-vinyl" id="vinyl-disc" title="Spotify Track">
+                <div class="vinyl-center-dot"></div>
+              </div>
+              <div class="track-text">
+                <span class="track-title" id="notch-track-title">Blinding Lights</span>
+                <span class="track-artist" id="notch-track-artist">The Weeknd • Spotify</span>
+              </div>
+            </div>
+            <div class="notch-controls-right">
+              <button id="notch-btn-audio-sink" class="notch-sink-chip" title="Toggle Audio Output (Main Display / Headphones)">
+                <span id="notch-sink-icon">🔊</span>
+                <span id="notch-sink-text">Main Display</span>
+              </button>
+              <button id="notch-btn-expand" class="icon-btn" title="Open Full Dio Hub">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+              </button>
+              <button id="notch-btn-close" class="icon-btn" title="Collapse Notch">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Middle: Playback controls & Volume slider -->
+          <div class="notch-mid-row">
+            <div class="notch-playback-btns">
+              <button class="media-control-btn" id="mbtn-prev" title="Previous / Before Track">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="3"/></svg>
+              </button>
+              <button class="media-play-btn" id="mbtn-play" title="Play / Pause">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" id="play-pause-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </button>
+              <button class="media-control-btn" id="mbtn-stop" title="Stop Playback">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+              </button>
+              <button class="media-control-btn" id="mbtn-next" title="Next Track">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="3"/></svg>
+              </button>
+            </div>
+
+            <!-- Volume Slider -->
+            <div class="notch-volume-wrapper">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              <input type="range" id="notch-volume-slider" min="0" max="100" value="80" class="custom-range-slider" title="Volume">
+              <span id="notch-volume-label" style="font-size: 11px; font-weight: 600; width: 32px;">80%</span>
+            </div>
+          </div>
+
+          <!-- Music Progress Scrubber Bar -->
+          <div class="notch-progress-container" id="notch-progress-container">
+            <span class="notch-time-text" id="notch-time-current">0:00</span>
+            <div class="notch-progress-track" id="notch-progress-track">
+              <div class="notch-progress-fill" id="notch-progress-fill" style="width: 0%;"></div>
+            </div>
+            <span class="notch-time-text" id="notch-time-total">0:00</span>
+          </div>
+
+          <!-- Bottom: Quick App & Action Chips -->
+          <div class="notch-bottom-row">
+            <div class="notch-app-pills">
+              <span class="notch-app-chip" data-launch="spotify">🎵 Spotify</span>
+              <span class="notch-app-chip" data-launch="youtube">▶️ YouTube</span>
+              <span class="notch-app-chip" data-launch="code">💻 VS Code</span>
+              <span class="notch-app-chip" data-launch="terminal">⚡ Terminal</span>
+              <span class="notch-app-chip" data-launch="chrome">🌐 Chrome</span>
+              <span class="notch-app-chip" data-launch="files">📁 Files</span>
+            </div>
+            <button id="notch-btn-voice" class="icon-btn" title="Speak to Dio" style="color: #ec4899; width: 28px; height: 28px; flex-shrink: 0;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= COOL FLOATING NOTIFICATION VIEW ================= -->
+      <div id="view-notification" class="island-view" style="display: none; width: 100%;">
+        <div class="notification-banner">
+          <div class="notif-left">
+            <div class="notif-badge-icon" id="notif-icon">💬</div>
+            <div class="notif-body">
+              <div class="notif-title" id="notif-title">Incoming Message</div>
+              <div class="notif-desc" id="notif-desc">Click to expand or reply to Dio</div>
+            </div>
+          </div>
+          <div class="notif-right">
+            <span class="notif-time-badge" id="notif-time">Now</span>
+            <button class="icon-btn" id="notif-btn-dismiss" title="Dismiss" style="width: 28px; height: 28px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= EXPANDED FULL HUB VIEW ================= -->
+      <div id="view-expanded" class="island-view" style="display: none; width: 100%; height: 100%; flex-direction: column;">
+        <!-- Header -->
+        <div class="expanded-header">
+          <div class="island-brand">
+            <div class="cute-mascot" id="brand-header-mascot" title="Dio AI Agent">
+              <div class="mascot-antenna"></div>
+              <div class="mascot-face">
+                <div class="mascot-eye left"></div>
+                <div class="mascot-mouth"></div>
+                <div class="mascot-eye right"></div>
+              </div>
+            </div>
+            <span class="brand-title">Dio <span class="brand-badge">Ubuntu</span></span>
+          </div>
+
+          <!-- Apple segmented nav tabs -->
+          <div class="hub-nav-tabs">
+            <button class="nav-tab-btn active" data-tab="chat">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="url(#grad-purple)" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Dio
+            </button>
+            <button class="nav-tab-btn" data-tab="system">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="url(#grad-cyan)" stroke-width="2.5"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M7 14l3-3 3 3 4-4"/></svg>
+              System & Apps
+            </button>
+            <button class="nav-tab-btn" data-tab="notion">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="url(#grad-amber)" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Notion
+            </button>
+            <button class="nav-tab-btn" data-tab="settings">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="url(#grad-mint)" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Settings
+            </button>
+          </div>
+
+          <!-- Controls -->
+          <div class="header-controls">
+            <button id="btn-theme-toggle" class="icon-btn" title="Toggle Dark/Light Mode">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="theme-icon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
+            <button id="btn-pin-toggle" class="icon-btn" title="Pin Island Open (Don't auto-collapse)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24V17z"/></svg>
+            </button>
+            <button id="btn-collapse-hub" class="icon-btn" title="Collapse Island">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Body -->
+        <div class="expanded-body">
+          
+          <!-- ================= TAB 1: JARVIS CHAT ================= -->
+          <div id="pane-chat" class="tab-pane active">
+            <div class="chat-container">
+              <!-- Dio AI Agent Status Header -->
+              <div class="chat-agent-header">
+                <div class="agent-header-left">
+                  <div class="cute-mascot" id="chat-header-mascot" title="Dio AI Agent">
+                    <div class="mascot-antenna"></div>
+                    <div class="mascot-face">
+                      <div class="mascot-eye left"></div>
+                      <div class="mascot-mouth"></div>
+                      <div class="mascot-eye right"></div>
+                    </div>
+                  </div>
+                  <div class="agent-title-col">
+                    <span class="agent-title">Dio Assistant</span>
+                    <span class="agent-substatus" id="chat-agent-status-badge">🟢 Online • ✨ Aval AI • 🔊 Nova Voice</span>
+                  </div>
+                </div>
+                <div class="agent-header-actions">
+                  <button id="btn-snip-screen" class="mini-chip-btn" title="Crop & snip screen region for Dio to inspect">
+                    <span>✂️ Snip Screen</span>
+                  </button>
+                  <button id="btn-trigger-wakeword" class="mini-chip-btn" title="Simulate saying 'Hey Dio'">
+                    <span>🎙️ Hey Dio</span>
+                  </button>
+                  <button id="btn-clear-chat" class="mini-chip-btn" title="Clear message history">
+                    <span>🗑️ Clear</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Quick PC Control Suggestions -->
+              <div class="suggestions-row">
+                <span class="suggestion-chip" id="chip-snip-screen" data-action="snip">✂️ Crop &amp; Ask Dio</span>
+                <span class="suggestion-chip" data-query="Switch to Antigravity IDE">✨ Antigravity IDE</span>
+                <span class="suggestion-chip" data-query="Open Spotify">🎵 Launch Spotify</span>
+                <span class="suggestion-chip" data-query="Switch audio to main display">🔊 Main Display Sound</span>
+                <span class="suggestion-chip" data-query="Take a screenshot of my screen">📸 Screenshot</span>
+                <span class="suggestion-chip" data-query="Check system stats">📊 System Health</span>
+                <span class="suggestion-chip" data-query="Open VS Code">🚀 VS Code</span>
+                <span class="suggestion-chip" data-query="Run bash command free -h">⚡ Terminal Stats</span>
+              </div>
+
+              <!-- Message Stream -->
+              <div class="messages-list" id="messages-list">
+                <!-- Welcome Message -->
+                <div class="message-bubble assistant">
+                  <div class="msg-avatar-container">
+                    <div class="cute-mascot msg-mascot-avatar" title="Dio">
+                      <div class="mascot-antenna"></div>
+                      <div class="mascot-face">
+                        <div class="mascot-eye left"></div>
+                        <div class="mascot-mouth"></div>
+                        <div class="mascot-eye right"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="msg-content">
+                    <strong>Dio AI Agent Online &amp; Ready.</strong><br>
+                    I have full control over your PC. Say <em>"Hey Dio"</em> aloud or click the mic to talk to me! I can now inspect and crop any part of your screen, speak back with voice, switch to and control apps (like Antigravity IDE, Chrome, VS Code), manage audio sinks, run terminal commands, and control media.<br>
+                    <span style="font-size: 11.5px; color: var(--text-muted); display: block; margin-top: 6px;">
+                      💡 Try: <em>"Switch to Antigravity"</em>, <em>"Hey Dio, crop screen"</em>, <em>"Hey Dio, stop song"</em>, or click <strong>✂️ Snip Screen</strong>.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Live Speech Transcript Status -->
+              <div id="chat-live-speech-indicator" class="chat-live-speech" style="display: none;">
+                <span class="live-mic-dot"></span>
+                <span id="chat-live-speech-text" class="live-speech-text">Listening... (Speak now, say 'stop' or tap screen to finish)</span>
+              </div>
+
+              <!-- Screen Snipping Attachment Preview Card -->
+              <div id="chat-attachment-box" class="chat-attachment-box" style="display: none;">
+                <div class="attachment-preview-wrapper">
+                  <img id="attachment-preview-img" src="" alt="Cropped area preview" class="attachment-thumb" />
+                  <div class="attachment-info">
+                    <span class="attachment-title">✂️ Cropped Screen Area</span>
+                    <span class="attachment-hint">Ready for Dio • Ask anything about this snip</span>
+                  </div>
+                </div>
+                <button id="btn-remove-attachment" class="attachment-remove-btn" title="Remove snip">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </div>
+
+              <!-- Input bar with distinct non-overlapping mic and send buttons -->
+              <div class="chat-bottom-bar">
+                <input type="text" id="chat-input" class="chat-input" placeholder="Ask Dio, or say 'Hey Dio'...">
+                <button id="chat-mic-btn" class="chat-mic-btn" title="Toggle Dio Microphone (continuous listening)">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                </button>
+                <button id="chat-send-btn" class="send-btn" title="Send message">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ================= TAB 2: SYSTEM & APPS ================= -->
+          <div id="pane-system" class="tab-pane">
+            <!-- 4 Main Hardware Gauges -->
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-card-title">
+                  <span>CPU Usage</span>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                </div>
+                <div class="stat-card-val" id="dash-cpu-val">0%</div>
+                <div class="stat-progress-bg">
+                  <div class="stat-progress-fill fill-cpu" id="dash-cpu-bar" style="width: 0%;"></div>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-card-title">
+                  <span>RAM Memory</span>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 19v-3M10 19v-7M14 19v-4M18 19v-8"/></svg>
+                </div>
+                <div class="stat-card-val" id="dash-ram-val">0%</div>
+                <div class="stat-progress-bg">
+                  <div class="stat-progress-fill fill-ram" id="dash-ram-bar" style="width: 0%;"></div>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-card-title">
+                  <span>Disk (Root)</span>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                </div>
+                <div class="stat-card-val" id="dash-disk-val">0%</div>
+                <div class="stat-progress-bg">
+                  <div class="stat-progress-fill fill-disk" id="dash-disk-bar" style="width: 0%;"></div>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-card-title">
+                  <span>Master Volume</span>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                </div>
+                <div class="stat-card-val" id="dash-vol-val">80%</div>
+                <div class="stat-progress-bg">
+                  <div class="stat-progress-fill fill-vol" id="dash-vol-bar" style="width: 80%;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick App Launch Grid -->
+            <div>
+              <div class="section-label" style="margin-bottom: 8px;">Quick Launch Applications</div>
+              <div class="system-actions-grid">
+                <div class="action-tile" data-launch="code">
+                  <div class="action-tile-icon" style="background: rgba(2, 132, 199, 0.18);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="url(#grad-cyan)" stroke-width="2.2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                  </div>
+                  <div class="action-tile-info">
+                    <span class="action-tile-name">VS Code</span>
+                    <span class="action-tile-desc">Code editor</span>
+                  </div>
+                </div>
+
+                <div class="action-tile" data-launch="chrome">
+                  <div class="action-tile-icon" style="background: rgba(236, 72, 153, 0.15);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="url(#grad-pink)" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>
+                  </div>
+                  <div class="action-tile-info">
+                    <span class="action-tile-name">Google Chrome</span>
+                    <span class="action-tile-desc">Web browser</span>
+                  </div>
+                </div>
+
+                <div class="action-tile" data-launch="terminal">
+                  <div class="action-tile-icon" style="background: rgba(16, 185, 129, 0.18);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="url(#grad-mint)" stroke-width="2.2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                  </div>
+                  <div class="action-tile-info">
+                    <span class="action-tile-name">GNOME Terminal</span>
+                    <span class="action-tile-desc">Bash shell</span>
+                  </div>
+                </div>
+
+                <div class="action-tile" data-launch="files">
+                  <div class="action-tile-icon" style="background: rgba(245, 158, 11, 0.18);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="url(#grad-amber)" stroke-width="2.2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                  </div>
+                  <div class="action-tile-info">
+                    <span class="action-tile-name">Files</span>
+                    <span class="action-tile-desc">Nautilus manager</span>
+                  </div>
+                </div>
+
+                <div class="action-tile" data-launch="spotify">
+                  <div class="action-tile-icon" style="background: rgba(16, 185, 129, 0.18);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="url(#grad-mint)" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M8 11.5c3-1 6-1 8 .5M7 14.5c3.5-1 7.5-.8 10 .8M9 8.5c3-1 6.5-.8 9 .5"/></svg>
+                  </div>
+                  <div class="action-tile-info">
+                    <span class="action-tile-name">Spotify</span>
+                    <span class="action-tile-desc">Music player</span>
+                  </div>
+                </div>
+
+                <div class="action-tile" data-launch="settings">
+                  <div class="action-tile-icon" style="background: rgba(168, 85, 247, 0.18);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="url(#grad-purple)" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                  </div>
+                  <div class="action-tile-info">
+                    <span class="action-tile-name">Ubuntu Settings</span>
+                    <span class="action-tile-desc">System config</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Direct Terminal Command Runner -->
+            <div style="margin-top: 4px;">
+              <div class="section-label" style="margin-bottom: 8px;">Terminal Command Execution</div>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="direct-term-input" class="form-input" placeholder="e.g. ps aux --sort=-%mem | head -n 5, free -h, df -h..." style="font-family: monospace;">
+                <button id="btn-run-term" class="mini-btn primary" style="padding: 0 16px; border-radius: 8px;">Run</button>
+              </div>
+              <div id="term-live-output" class="terminal-code-block" style="margin-top: 8px; border-radius: 8px; min-height: 80px; display: none;"></div>
+            </div>
+          </div>
+
+          <!-- ================= TAB 3: NOTION HUB ================= -->
+          <div id="pane-notion" class="tab-pane">
+            <div class="notion-wrapper">
+              <div class="notion-status-card">
+                <div>
+                  <div style="font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                    <span>Notion Workspace</span>
+                    <span id="notion-status-badge" class="card-badge pending">Not Configured</span>
+                  </div>
+                  <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                    Connect your Notion workspace via API Token or OAuth to create quick notes, tasks, and ideas directly from the Dynamic Island.
+                  </div>
+                </div>
+                <button id="btn-open-notion-auth" class="mini-btn primary">Configure Notion</button>
+              </div>
+
+              <!-- Quick Note Composer -->
+              <div class="notion-quick-form">
+                <div style="font-size: 13px; font-weight: 600;">Create Quick Notion Note / Task</div>
+                <input type="text" id="notion-note-title" class="form-input" placeholder="Title (e.g. 'Project meeting action items')">
+                <textarea id="notion-note-body" class="form-input form-textarea" placeholder="Note content, bullet points, or idea..."></textarea>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span id="notion-create-feedback" style="font-size: 11.5px; color: var(--accent-emerald);"></span>
+                  <button id="btn-save-notion" class="mini-btn primary" style="padding: 6px 16px;">Save to Notion</button>
+                </div>
+              </div>
+
+              <!-- Recent Notes -->
+              <div>
+                <div class="section-label" style="margin-bottom: 8px;">Recent Island Notes</div>
+                <div id="notion-recent-list" style="display: flex; flex-direction: column; gap: 8px;">
+                  <div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 14px; background: var(--bg-surface); border-radius: 12px;">
+                    No notes created yet. Use the form above or tell Dio "Create a note in Notion..."
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ================= TAB 4: SETTINGS ================= -->
+          <div id="pane-settings" class="tab-pane">
+            
+            <!-- ================= PERSONALIZATION & PREFERENCES ================= -->
+            <div class="settings-section">
+              <div class="section-label">Dio Personalization &amp; Preferences</div>
+              
+              <div class="settings-card" style="flex-direction: column; align-items: stretch; gap: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                  <div class="setting-info">
+                    <div class="setting-title">User Profile &amp; Tone Customization</div>
+                    <div class="setting-desc">Tailor how Dio addresses you, understands your workflow, and responds</div>
+                  </div>
+                  <span class="badge-tag" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; font-size: 11px; padding: 2px 8px; border-radius: 9999px;">✨ Personalized</span>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                  <div>
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Call Me (Your Name / Nickname):</label>
+                    <input type="text" id="setting-user-name" class="form-input" placeholder="e.g. rupper, Bro, Boss" value="rupper">
+                  </div>
+                  <div>
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Dio Persona Tone:</label>
+                    <select id="setting-persona-tone" class="select-input">
+                      <option value="bro">Friendly Bro (Warm, peer-like, calls you bro, energetic)</option>
+                      <option value="jarvis">Jarvis Tech AI (Futuristic, sophisticated, crisp)</option>
+                      <option value="concise">Concise Coder (Direct, technical, zero fluff)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Custom Workflow Knowledge &amp; Instructions for Dio:</label>
+                  <textarea id="setting-user-instructions" class="form-input" rows="2" style="resize: vertical; font-size: 12px; height: 58px;" placeholder="Tell Dio about your preferred apps, coding stacks, and habits (e.g. My main IDE is Antigravity, I code in PHP/Electron, always speak responses aloud)..."></textarea>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end;">
+                  <button type="button" id="btn-save-personalization" class="mini-btn primary" style="background: var(--accent-cyan); color: #020617; font-weight: 600; padding: 6px 14px; border-radius: 6px;">💾 Save Personalization</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- AI Provider Settings -->
+            <div class="settings-section">
+              <div class="section-label">AI & Agent Providers</div>
+              
+              <div class="settings-card">
+                <div class="setting-info">
+                  <div class="setting-title">Primary AI Engine</div>
+                  <div class="setting-desc">Choose which AI provider powers Dio agent reasoning and tools</div>
+                </div>
+                <select id="setting-ai-provider" class="select-input">
+                  <option value="avalai">⚡ Aval AI (Ultra-Fast Iranian Gateway & Global Models) ★ Favorite</option>
+                  <option value="openrouter">OpenRouter API (Xiaomi MiMo, Claude, DeepSeek, Free)</option>
+                  <option value="gemini">Google Gemini API (Gemini 3.8 Flash, 1.5 Pro)</option>
+                  <option value="custom">Antigravity / Local LLM (Ollama / Local Proxy)</option>
+                  <option value="builtin">Built-in Offline System Agent</option>
+                </select>
+              </div>
+
+              <!-- Aval AI Settings Group -->
+              <div id="group-avalai" class="settings-card" style="flex-direction: column; align-items: stretch; gap: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                  <div class="setting-info">
+                    <div class="setting-title">Aval AI Configuration (chat.avalai.ir)</div>
+                    <div class="setting-desc">Zero-latency API access with high-speed Persian & global intelligence</div>
+                  </div>
+                  <button type="button" id="btn-open-avalai-keys" class="mini-btn primary" style="background: rgba(99, 102, 241, 0.18); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 4px 10px; font-size: 11px;">🔑 Aval AI Dashboard ↗</button>
+                </div>
+                <input type="password" id="setting-avalai-key" class="form-input" placeholder="Paste Aval AI Key: aa-xxxxxxxx...">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                  <span style="font-size: 12px; color: var(--text-muted);">Model:</span>
+                  <select id="setting-avalai-model" class="select-input" style="flex: 1;">
+                    <option value="gpt-4o-mini">gpt-4o-mini (Super Fast & Smart - Recommended)</option>
+                    <option value="gemini-3.8-flash">gemini-3.8-flash (Latest Generation Google Flash)</option>
+                    <option value="deepseek-v4.1-flash">deepseek-v4.1-flash (DeepSeek Coding & Reasoning)</option>
+                    <option value="qwen3.8-flash">qwen3.8-flash (Ultra-fast Qwen)</option>
+                    <option value="claude-sonnet-5-5">claude-sonnet-5-5 (Flagship Reasoning)</option>
+                    <option value="gpt-6.1-sol">gpt-6.1-sol (Aval AI Frontier)</option>
+                  </select>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button type="button" id="btn-test-avalai-key" class="mini-btn" style="flex: 1; background: var(--bg-surface); border: 1px solid var(--border-subtle);">Test Aval AI Key</button>
+                </div>
+              </div>
+
+              <!-- OpenRouter Settings Group -->
+              <div id="group-openrouter" class="settings-card" style="flex-direction: column; align-items: stretch; gap: 10px; display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                  <div class="setting-info">
+                    <div class="setting-title">OpenRouter Configuration</div>
+                    <div class="setting-desc">Free & Xiaomi AI models supported (via openrouter.ai)</div>
+                  </div>
+                  <button type="button" id="btn-open-openrouter-keys" class="mini-btn primary" style="background: rgba(56, 189, 248, 0.18); color: var(--accent-cyan); border: 1px solid rgba(56, 189, 248, 0.4); padding: 4px 10px; font-size: 11px;">🔑 Get API Key ↗</button>
+                </div>
+                <input type="password" id="setting-openrouter-key" class="form-input" placeholder="Paste OpenRouter Key: sk-or-v1-xxxxxxxx...">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                  <span style="font-size: 12px; color: var(--text-muted);">Model:</span>
+                  <select id="setting-openrouter-model" class="select-input" style="flex: 1;">
+                    <option value="openrouter/free">★ openrouter/free (Auto Free Model Router)</option>
+                    <option value="xiaomi/mimo-v2.6-flash">xiaomi/mimo-v2.6-flash (Xiaomi MiMo Fast)</option>
+                    <option value="xiaomi/mimo-v2.6-pro">xiaomi/mimo-v2.6-pro (Xiaomi MiMo Flagship)</option>
+                    <option value="xiaomi/mimo-v2.5">xiaomi/mimo-v2.5 (Xiaomi MiMo Standard)</option>
+                    <option value="qwen/qwen3.8-27b:free">qwen/qwen3.8-27b:free (100% Free)</option>
+                    <option value="google/gemma-4-26b-a4b-it:free">google/gemma-4-26b-a4b-it:free (100% Free)</option>
+                    <option value="meta-llama/llama-3.3-70b-instruct:free">meta-llama/llama-3.3-70b-instruct:free (100% Free)</option>
+                    <option value="openai/gpt-4o-mini">openai/gpt-4o-mini (Affordable & Smart)</option>
+                    <option value="anthropic/claude-3.5-haiku">anthropic/claude-3.5-haiku</option>
+                    <option value="deepseek/deepseek-chat">deepseek/deepseek-chat</option>
+                  </select>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button type="button" id="btn-test-openrouter-key" class="mini-btn" style="flex: 1; background: var(--bg-surface); border: 1px solid var(--border-subtle);">Test API Key</button>
+                  <button type="button" id="btn-open-openrouter-models" class="mini-btn" style="flex: 1; background: var(--bg-surface); border: 1px solid var(--border-subtle); color: var(--text-muted);">Browse Xiaomi & Free Models ↗</button>
+                </div>
+              </div>
+
+              <!-- Gemini Settings Group -->
+              <div id="group-gemini" class="settings-card" style="flex-direction: column; align-items: stretch; gap: 10px; display: none;">
+                <div class="setting-info">
+                  <div class="setting-title">Google Gemini Configuration</div>
+                  <div class="setting-desc">Direct Google AI Studio API key</div>
+                </div>
+                <input type="password" id="setting-gemini-key" class="form-input" placeholder="AIzaSy... or AQ....">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                  <span style="font-size: 12px; color: var(--text-muted);">Model:</span>
+                  <select id="setting-gemini-model" class="select-input" style="flex: 1;">
+                    <option value="gemini-3.8-flash">gemini-3.8-flash (Latest Generation & Fast)</option>
+                    <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                    <option value="gemini-1.5-pro">gemini-1.5-pro (Deep Reasoning)</option>
+                    <option value="gemini-1.5-flash">gemini-1.5-flash (Standard)</option>
+                  </select>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button type="button" id="btn-test-gemini-key" class="mini-btn" style="flex: 1; background: var(--bg-surface); border: 1px solid var(--border-subtle);">Test Gemini Key</button>
+                </div>
+              </div>
+
+              <!-- Custom / Antigravity Group -->
+              <div id="group-custom" class="settings-card" style="flex-direction: column; align-items: stretch; gap: 10px; display: none;">
+                <div class="setting-info">
+                  <div class="setting-title">Custom / Antigravity Endpoint</div>
+                  <div class="setting-desc">Connect to local Ollama or Antigravity local agent server</div>
+                </div>
+                <input type="text" id="setting-custom-endpoint" class="form-input" placeholder="http://localhost:11434/v1/chat/completions">
+                <input type="text" id="setting-custom-model" class="form-input" placeholder="Model name (e.g. llama3, mistral, qwen)">
+              </div>
+
+              <!-- Notion Token Group -->
+              <div class="settings-card" style="flex-direction: column; align-items: stretch; gap: 10px;">
+                <div class="setting-info">
+                  <div class="setting-title">Notion Integration Token</div>
+                  <div class="setting-desc">Internal Integration Secret from notion.so/my-integrations</div>
+                </div>
+                <input type="password" id="setting-notion-token" class="form-input" placeholder="ntn_... or secret_...">
+                <input type="text" id="setting-notion-database" class="form-input" placeholder="Default Database ID (optional)">
+              </div>
+
+              <div style="display: flex; justify-content: flex-end;">
+                <button id="btn-save-settings" class="mini-btn primary" style="padding: 6px 16px;">Save API Credentials</button>
+              </div>
+            </div>
+
+            <!-- Island Display & Sizing Configuration -->
+            <div class="settings-section">
+              <div class="section-label">Monitor & Island Dimensions</div>
+
+              <!-- Monitor Selection -->
+              <div class="settings-card">
+                <div class="setting-info">
+                  <div class="setting-title">Target Monitor / Screen</div>
+                  <div class="setting-desc">Choose which display the Dynamic Island should float on</div>
+                </div>
+                <select id="setting-monitor-select" class="select-input" style="min-width: 180px;">
+                  <option value="primary">Loading displays...</option>
+                </select>
+              </div>
+
+              <!-- Pill Width / Length Slider -->
+              <div class="settings-card" style="flex-direction: column; align-items: stretch; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div class="setting-info">
+                    <div class="setting-title">Island Length (Width)</div>
+                    <div class="setting-desc">Adjust the horizontal size of the compact pill</div>
+                  </div>
+                  <span id="val-pill-width" style="font-size: 12px; font-weight: 700; color: var(--accent-cyan);">280px</span>
+                </div>
+                <input type="range" id="setting-pill-width" min="200" max="400" value="280" class="custom-range-slider">
+              </div>
+
+              <!-- Pill Height / Thickness Slider -->
+              <div class="settings-card" style="flex-direction: column; align-items: stretch; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div class="setting-info">
+                    <div class="setting-title">Island Thickness (Height)</div>
+                    <div class="setting-desc">Adjust the vertical height of the compact pill</div>
+                  </div>
+                  <span id="val-pill-height" style="font-size: 12px; font-weight: 700; color: var(--accent-cyan);">44px</span>
+                </div>
+                <input type="range" id="setting-pill-height" min="32" max="54" value="44" class="custom-range-slider">
+              </div>
+
+              <!-- Pill Click Action -->
+              <div class="settings-card">
+                <div class="setting-info">
+                  <div class="setting-title">Pill Click Action</div>
+                  <div class="setting-desc">Action triggered when clicking the compact dynamic pill</div>
+                </div>
+                <select id="setting-click-behavior" class="select-input">
+                  <option value="notch">Apple Notchbar (Media, Volume, Apps)</option>
+                  <option value="quick">Quick Actions Bar</option>
+                  <option value="expanded">Full Dio Hub</option>
+                </select>
+              </div>
+
+              <!-- System Notification Interception -->
+              <div class="settings-card">
+                <div class="setting-info">
+                  <div class="setting-title">Intercept Ubuntu Desktop Notifications</div>
+                  <div class="setting-desc">Hides old GNOME popup banners and routes all desktop notifications to the Dynamic Island</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="setting-notify-intercept-toggle" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <!-- Notification Test Actions -->
+              <div class="settings-card">
+                <div class="setting-info">
+                  <div class="setting-title">Test Island Notifications</div>
+                  <div class="setting-desc">Preview inside the island or trigger a live Ubuntu system notification</div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button id="btn-test-notification" class="mini-btn primary" style="background: linear-gradient(135deg, #ec4899, #a855f7); border: none;">Island Preview ✨</button>
+                  <button id="btn-test-system-notification" class="mini-btn secondary" style="border: 1px solid var(--border-subtle);">Send System Notify 🔔</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Microphone & Dio Wake Word Configuration -->
+            <div class="settings-section">
+              <div class="section-label">Microphone & "Hey Dio" Wake Word</div>
+
+              <!-- Continuous Wake Word -->
+              <div class="settings-card">
+                <div class="setting-info">
+                  <div class="setting-title">Continuous "Hey Dio" Wake Word</div>
+                  <div class="setting-desc">Say "Hey Dio" anytime to wake Dio and ask "How can I help you today?"</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="setting-wakeword-toggle" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <!-- Wake Word Trigger Phrase -->
+              <div class="settings-card">
+                <div class="setting-info">
+                  <div class="setting-title">Activation Phrase</div>
+                  <div class="setting-desc">Keyword phrase to trigger Dio (default: "Hey Dio")</div>
+                </div>
+                <input type="text" id="setting-wake-word-input" class="form-input" style="max-width: 140px; text-align: center; font-weight: 600;" value="Hey Dio">
+              </div>
+
+              <!-- Microphone Status & Permission -->
+              <div class="settings-card">
+                <div class="setting-info">
+                  <div class="setting-title">Microphone Live Status</div>
+                  <div class="setting-desc">Real-time speech recognition listener state</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span id="mic-status-badge" class="stat-chip" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 600; padding: 4px 10px; border-radius: 9999px;">🟢 Active / Listening</span>
+                  <button type="button" id="btn-test-mic" class="mini-btn" style="background: var(--bg-surface); border: 1px solid var(--border-subtle);">Test Mic</button>
+                </div>
+              </div>
+
+              <!-- Dio Voice Output (TTS) -->
+              <div class="settings-card">
+                <div class="setting-info">
+                  <div class="setting-title">Dio Voice Responses (TTS)</div>
+                  <div class="setting-desc">Dio speaks answers aloud with natural speech synthesis</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="setting-voice-toggle" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <!-- Auto-Pause Media Switch (Smart Audio Focus) -->
+              <div class="settings-card">
+                <div class="setting-info">
+                  <div class="setting-title">Auto-Pause PC Audio During Voice & Answers</div>
+                  <div class="setting-desc">Instantly pauses Spotify, YouTube, and media when the mic is active or Dio is answering, and resumes when done</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="setting-autopause-toggle" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <!-- Voice Selection & Audio Test -->
+              <div class="settings-card" style="flex-direction: column; align-items: stretch; gap: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div class="setting-info">
+                    <div class="setting-title">Voice Selection & Pitch</div>
+                    <div class="setting-desc">Choose speech synthesis voice</div>
+                  </div>
+                  <button type="button" id="btn-test-voice" class="mini-btn primary" style="background: linear-gradient(135deg, #a855f7, #6366f1); border: none; padding: 4px 12px;">Test Dio Voice 🔊</button>
+                </div>
+                <select id="setting-voice-select" class="select-input" style="width: 100%;">
+                  <option value="">Loading system voices...</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Ubuntu & System Settings -->
+            <div class="settings-section">
+              <div class="section-label">Ubuntu System & Automation</div>
+
+              <!-- Autostart Toggle -->
+              <div class="settings-card">
+                <div class="setting-info">
+                  <div class="setting-title">Start Automatically on Login</div>
+                  <div class="setting-desc">Creates ~/.config/autostart/ubuntu-dynamic-island.desktop</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="setting-autostart-toggle">
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <!-- Safety Confirmation Toggle -->
+              <div class="settings-card">
+                <div class="setting-info">
+                  <div class="setting-title">Confirm Terminal Commands</div>
+                  <div class="setting-desc">Ask for confirmation before executing bash commands</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="setting-confirm-cmd-toggle" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <!-- Sound Effects Toggle -->
+              <div class="settings-card">
+                <div class="setting-info">
+                  <div class="setting-title">Apple-Style Sound Chimes</div>
+                  <div class="setting-desc">Subtle haptic audio cues when island morphs</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="setting-sound-toggle" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <!-- Hotkey Reference -->
+              <div class="settings-card">
+                <div class="setting-info">
+                  <div class="setting-title">Global Hotkey</div>
+                  <div class="setting-desc">Press anytime to toggle the Dynamic Island open or closed</div>
+                </div>
+                <kbd style="background: var(--bg-surface-active); border: 1px solid var(--border-island); padding: 4px 8px; border-radius: 6px; font-size: 11px; font-family: monospace;">Ctrl + Shift + Space</kbd>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/browser-mock.js"></script>
+  <script src="js/sound.js"></script>
+  <script src="js/system.js"></script>
+  <script src="js/notion.js"></script>
+  <script src="js/agent.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

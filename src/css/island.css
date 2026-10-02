@@ -1,0 +1,647 @@
+/* Apple Dynamic Island - Design System & Physics */
+:root {
+  /* Dark Theme Tokens (Apple OLED Jet Black) */
+  --bg-island: #07080c;
+  --bg-island-solid: #050608;
+  --bg-surface: rgba(255, 255, 255, 0.08);
+  --bg-surface-hover: rgba(255, 255, 255, 0.1);
+  --bg-surface-active: rgba(255, 255, 255, 0.15);
+  
+  --border-island: rgba(255, 255, 255, 0.13);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-focus: rgba(99, 102, 241, 0.6);
+
+  --text-main: #f3f4f6;
+  --text-muted: #9ca3af;
+  --text-subtle: #6b7280;
+
+  --accent-cyan: #38bdf8;
+  --accent-blue: #6366f1;
+  --accent-purple: #a855f7;
+  --accent-emerald: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-rose: #f43f5e;
+
+  --shadow-island: 0 16px 45px -8px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --shadow-card: 0 8px 24px -4px rgba(0, 0, 0, 0.4);
+
+  --glow-agent: 0 0 16px rgba(99, 102, 241, 0.45);
+  --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+body.theme-light {
+  /* Light Theme Tokens */
+  --bg-island: rgba(245, 246, 250, 0.92);
+  --bg-island-solid: #f8fafc;
+  --bg-surface: rgba(0, 0, 0, 0.04);
+  --bg-surface-hover: rgba(0, 0, 0, 0.08);
+  --bg-surface-active: rgba(0, 0, 0, 0.12);
+
+  --border-island: rgba(0, 0, 0, 0.12);
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-focus: rgba(79, 70, 229, 0.6);
+
+  --text-main: #111827;
+  --text-muted: #4b5563;
+  --text-subtle: #9ca3af;
+
+  --shadow-island: 0 16px 45px -8px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 6px 18px -3px rgba(0, 0, 0, 0.08);
+  --glow-agent: 0 0 14px rgba(79, 70, 229, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent !important;
+  font-family: var(--font-family);
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Island Root Container */
+#island-app {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 0;
+  perspective: 1000px;
+}
+
+.dynamic-island {
+  position: relative;
+  background: var(--bg-island);
+  backdrop-filter: blur(32px) saturate(190%);
+  -webkit-backdrop-filter: blur(32px) saturate(190%);
+  border: 1px solid var(--border-island);
+  box-shadow: var(--shadow-island);
+  overflow: hidden;
+  transition: width 0.38s var(--ease-spring),
+              height 0.38s var(--ease-spring),
+              border-radius 0.38s var(--ease-spring),
+              background 0.3s ease,
+              border-color 0.3s ease,
+              box-shadow 0.38s var(--ease-spring);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Specular highlight rim */
+.dynamic-island::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* STATE 1: Compact Pill */
+.dynamic-island.state-compact {
+  width: var(--pill-width, 280px);
+  height: var(--pill-height, 44px);
+  border-radius: 9999px;
+  cursor: pointer;
+  padding: 0 10px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dynamic-island.state-compact.has-media {
+  width: 100%;
+  padding: 0 10px 0 8px;
+}
+
+.dynamic-island.state-compact:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: var(--shadow-island), 0 0 15px rgba(99, 102, 241, 0.2);
+  transform: translateY(1px);
+}
+
+/* STATE 2: Quick Bar */
+.dynamic-island.state-quick {
+  width: 450px;
+  height: 50px;
+  border-radius: 9999px;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* STATE 3: Prompt & Voice Bar */
+.dynamic-island.state-prompt {
+  width: 590px;
+  height: 88px;
+  border-radius: 28px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Universal Scrollbar Suppression */
+*, *::before, *::after {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+}
+
+/* STATE 2B: Apple Phone Notchbar Card (Media & Volume) */
+.dynamic-island.state-notch {
+  width: 500px;
+  height: 242px;
+  border-radius: 36px;
+  padding: 16px 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+/* STATE 2C: Cool Notification Banner */
+.dynamic-island.state-notification {
+  width: 480px;
+  height: 72px;
+  border-radius: 9999px;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  animation: notificationSpring 0.45s var(--ease-bounce);
+}
+
+@keyframes notificationSpring {
+  0% { transform: scale(0.92) translateY(-6px); opacity: 0.7; }
+  60% { transform: scale(1.02) translateY(1px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* STATE 4: Expanded Island Hub */
+.dynamic-island.state-expanded {
+  width: 760px;
+  height: 560px;
+  border-radius: 32px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   CUTE CYBER MASCOT (IMAGE 3 - DIO ROBOT COMPANION)
+   ========================================================================== */
+.cute-mascot {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  background: radial-gradient(circle at 50% 35%, #101c38 0%, #060913 100%);
+  border: 2px solid #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.65), 0 0 20px rgba(56, 189, 248, 0.25), inset 0 0 8px rgba(56, 189, 248, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+  user-select: none;
+}
+
+.cute-mascot:hover {
+  transform: scale(1.15) translateY(-2px);
+  border-color: #7dd3fc;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.9), 0 0 28px rgba(56, 189, 248, 0.4), inset 0 0 12px rgba(56, 189, 248, 0.35);
+}
+
+/* Centered Top Antenna Orb */
+.mascot-antenna {
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background: #38bdf8;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #38bdf8, 0 0 14px rgba(56, 189, 248, 0.8);
+  transition: all 0.3s ease;
+  z-index: 2;
+}
+
+/* Face container */
+.mascot-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding-top: 1px;
+  position: relative;
+}
+
+/* Vertical Pill Eyes (Glowing Cyan) */
+.mascot-eye {
+  width: 5px;
+  height: 9px;
+  background: #38bdf8;
+  border-radius: 9999px;
+  box-shadow: 0 0 8px #38bdf8, 0 0 14px rgba(56, 189, 248, 0.7);
+  animation: mascotEyeBlink 3.8s infinite;
+  transition: all 0.25s ease;
+}
+
+/* Cute Curved Smile */
+.mascot-mouth {
+  width: 5px;
+  height: 3px;
+  border-bottom: 2px solid #38bdf8;
+  border-radius: 0 0 5px 5px;
+  box-shadow: 0 1px 4px rgba(56, 189, 248, 0.5);
+  margin-top: 3px;
+  transition: all 0.25s ease;
+}
+
+/* Message Avatar Variant */
+.msg-mascot-avatar {
+  width: 28px;
+  height: 28px;
+  margin-right: 8px;
+}
+
+.msg-user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  margin-right: 8px;
+}
+
+.msg-avatar-container {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  padding-top: 2px;
+}
+
+/* ==========================================================================
+   MASCOT ANIMATION STATES (LISTENING, WORKING/ACTION, ANSWERING/SPEAKING, IDLE)
+   ========================================================================== */
+
+/* 1. LISTENING STATE */
+.cute-mascot.status-listening {
+  border-color: #38bdf8;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.95), 0 0 32px rgba(56, 189, 248, 0.5), inset 0 0 12px rgba(56, 189, 248, 0.35);
+  animation: mascotListenBob 1.2s infinite ease-in-out;
+}
+.cute-mascot.status-listening .mascot-antenna {
+  background: #38bdf8;
+  animation: antennaSonar 1s infinite ease-out;
+}
+.cute-mascot.status-listening .mascot-eye {
+  height: 10px;
+  width: 6px;
+  box-shadow: 0 0 12px #38bdf8, 0 0 20px #38bdf8;
+  animation: none;
+}
+.cute-mascot.status-listening .mascot-mouth {
+  width: 6px;
+  border-bottom-width: 2.5px;
+}
+
+/* 2. WORKING / DOING A JOB / THINKING STATE */
+.cute-mascot.status-thinking,
+.cute-mascot.status-action {
+  border-color: #818cf8;
+  box-shadow: 0 0 18px rgba(129, 140, 248, 0.85), 0 0 30px rgba(168, 85, 247, 0.45), inset 0 0 10px rgba(129, 140, 248, 0.35);
+  animation: mascotWorkingVibe 0.8s infinite ease-in-out;
+}
+.cute-mascot.status-thinking .mascot-antenna,
+.cute-mascot.status-action .mascot-antenna {
+  background: #a855f7;
+  box-shadow: 0 0 10px #a855f7, 0 0 18px rgba(168, 85, 247, 0.8);
+  animation: antennaWorkPulse 0.6s infinite alternate ease-in-out;
+}
+.cute-mascot.status-thinking .mascot-eye,
+.cute-mascot.status-action .mascot-eye {
+  background: #a855f7;
+  box-shadow: 0 0 10px #a855f7, 0 0 16px rgba(168, 85, 247, 0.7);
+  animation: eyeScan 1.2s infinite ease-in-out;
+}
+.cute-mascot.status-thinking .mascot-mouth,
+.cute-mascot.status-action .mascot-mouth {
+  border-bottom-color: #a855f7;
+  width: 4px;
+}
+
+/* 3. ANSWERING / SPEAKING STATE */
+.cute-mascot.status-speaking,
+.cute-mascot.status-answering {
+  border-color: #38bdf8;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.9), 0 0 28px rgba(56, 189, 248, 0.45), inset 0 0 10px rgba(56, 189, 248, 0.3);
+  animation: mascotSpeakingBob 0.5s infinite alternate ease-in-out;
+}
+.cute-mascot.status-speaking .mascot-antenna,
+.cute-mascot.status-answering .mascot-antenna {
+  animation: antennaVoiceGlow 0.4s infinite alternate ease-in-out;
+}
+.cute-mascot.status-speaking .mascot-eye,
+.cute-mascot.status-answering .mascot-eye {
+  box-shadow: 0 0 10px #38bdf8, 0 0 18px #38bdf8;
+  animation: eyeSpeakSquint 0.6s infinite alternate ease-in-out;
+}
+.cute-mascot.status-speaking .mascot-mouth,
+.cute-mascot.status-answering .mascot-mouth {
+  animation: mouthTalking 0.35s infinite ease-in-out;
+}
+
+/* Keyframes */
+@keyframes mascotEyeBlink {
+  0%, 93%, 97%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+
+@keyframes mascotListenBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px) scale(1.04); }
+}
+
+@keyframes antennaSonar {
+  0% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 0 0 6px #38bdf8, 0 0 0 0 rgba(56, 189, 248, 0.7);
+  }
+  70% {
+    transform: translateX(-50%) scale(1.3);
+    box-shadow: 0 0 12px #38bdf8, 0 0 0 8px rgba(56, 189, 248, 0);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 0 0 6px #38bdf8, 0 0 0 0 rgba(56, 189, 248, 0);
+  }
+}
+
+@keyframes eyeScan {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2.5px); }
+  75% { transform: translateX(2.5px); }
+}
+
+@keyframes mascotWorkingVibe {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-1.5px) rotate(-1.5deg); }
+  75% { transform: translateY(1px) rotate(1.5deg); }
+}
+
+@keyframes antennaWorkPulse {
+  0% { transform: translateX(-50%) scale(1); opacity: 0.8; }
+  100% { transform: translateX(-50%) scale(1.4); opacity: 1; }
+}
+
+@keyframes mascotSpeakingBob {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(-2px) scale(1.03); }
+}
+
+@keyframes antennaVoiceGlow {
+  0% { transform: translateX(-50%) scale(1); box-shadow: 0 0 6px #38bdf8; }
+  100% { transform: translateX(-50%) scale(1.35); box-shadow: 0 0 16px #38bdf8, 0 0 24px rgba(56, 189, 248, 0.8); }
+}
+
+@keyframes eyeSpeakSquint {
+  0% { transform: scaleY(1); }
+  100% { transform: scaleY(0.85); }
+}
+
+@keyframes mouthTalking {
+  0%, 100% {
+    height: 2px;
+    width: 5px;
+    border-radius: 0 0 5px 5px;
+    background: transparent;
+  }
+  35% {
+    height: 5px;
+    width: 6px;
+    border-radius: 50%;
+    background: rgba(56, 189, 248, 0.4);
+    border: 1.5px solid #38bdf8;
+  }
+  70% {
+    height: 3px;
+    width: 5.5px;
+    border-radius: 0 0 4px 4px;
+    background: transparent;
+  }
+}
+
+/* Jarvis Orb / Indicator Pulse */
+.jarvis-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.jarvis-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent-emerald);
+  box-shadow: 0 0 8px var(--accent-emerald);
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.jarvis-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent-emerald);
+  opacity: 0.5;
+  animation: pulseRing 2.4s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+}
+
+@keyframes pulseRing {
+  0% { transform: scale(0.8); opacity: 0.9; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* Agent State Colors */
+.jarvis-dot.status-idle {
+  background: var(--accent-emerald);
+  box-shadow: 0 0 10px var(--accent-emerald);
+}
+.jarvis-dot.status-listening {
+  background: var(--accent-cyan);
+  box-shadow: 0 0 14px var(--accent-cyan);
+  animation: pulseMic 1.2s infinite alternate;
+}
+.jarvis-dot.status-thinking {
+  background: var(--accent-purple);
+  box-shadow: 0 0 14px var(--accent-purple);
+  animation: pulseThinking 1.4s infinite;
+}
+.jarvis-dot.status-action {
+  background: var(--accent-amber);
+  box-shadow: 0 0 12px var(--accent-amber);
+}
+
+@keyframes pulseMic {
+  0% { transform: scale(1); filter: brightness(1); }
+  100% { transform: scale(1.3); filter: brightness(1.4); }
+}
+
+@keyframes pulseThinking {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+/* Compact Pill Elements */
+.compact-center {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+.compact-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: "SF Mono", "Fira Code", monospace;
+}
+
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.compact-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pill-action-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  color: var(--text-main);
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.pill-action-btn:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-island);
+  transform: scale(1.1);
+}
+
+/* Quick Bar Action Chips */
+.quick-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.quick-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.quick-btn:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-island);
+  transform: translateY(-1px);
+}
+
+.quick-btn.active {
+  background: var(--accent-blue);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
+}
+
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.icon-btn:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-island);
+  transform: scale(1.08);
+}
