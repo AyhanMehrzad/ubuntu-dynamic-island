@@ -24,6 +24,15 @@ class DioAgent {
     this.recordingStartTime = 0;
     this.userProfile = this.loadUserProfile();
     this.latestDesktopContext = null;
+
+    // Sync environment keys into localStorage if not already present
+    if (window.electronAPI && window.electronAPI.getEnvKeys) {
+      window.electronAPI.getEnvKeys().then(keys => {
+        if (keys && keys.avalaiKey && !localStorage.getItem('avalai_key')) {
+          localStorage.setItem('avalai_key', keys.avalaiKey);
+        }
+      }).catch(() => {});
+    }
   }
 
   loadUserProfile() {
@@ -567,8 +576,8 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
 
         // Slowly follow room ambient noise floor
         ambientNoiseRms = ambientNoiseRms * 0.98 + rms * 0.02;
-        // Optimal speech threshold to avoid false-triggering on room hum or fan noise
-        const voiceThreshold = Math.max(0.016, ambientNoiseRms * 1.6 + 0.008);
+        // Optimal natural speech threshold (sensitive enough for natural speaking distance)
+        const voiceThreshold = Math.max(0.009, ambientNoiseRms * 1.35 + 0.004);
 
         const now = Date.now();
         if (rms > voiceThreshold) {
@@ -589,11 +598,13 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
               speechActive = false;
               consecutiveQuietFrames = 0;
 
-              // Check if speech lasted between 300ms and 4500ms
-              if (speechDuration >= 300 && speechDuration <= 4500) {
+              // Check if speech lasted between 250ms and 4500ms
+              if (speechDuration >= 250 && speechDuration <= 4500) {
+                // Keep slice focused on recent 1.8s for sub-second Whisper processing
+                const durationSeconds = Math.min(2.0, (speechDuration + 350) / 1000);
                 const totalSamplesNeeded = Math.min(
                   this.RING_CAPACITY,
-                  Math.floor(((speechDuration + 450) / 1000) * this.RING_SAMPLE_RATE)
+                  Math.floor(durationSeconds * this.RING_SAMPLE_RATE)
                 );
                 
                 // Extract pre-buffered audio containing the utterance
@@ -832,6 +843,22 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
     // Play pleasant haptic chime
     if (window.soundController) window.soundController.playPop();
 
+    // 1. Instant Snip command with wake word: "Hey Dio snip" / "Hey Dio crop"
+    if (transcript.match(/\b(snip|crop|screenshot)\b/i)) {
+      console.log('[WakeWord] Instant SNIP command triggered:', transcript);
+      this.triggerScreenSnip();
+      return;
+    }
+
+    // 2. Instant Stop command with wake word: "Hey Dio stop"
+    if (transcript.match(/\b(stop|cancel|shut up|nevermind|pause)\b/i)) {
+      console.log('[WakeWord] Instant STOP command triggered:', transcript);
+      this.interruptSpeech();
+      this.isLiveConversationMode = false;
+      if (window.islandApp) window.islandApp.collapse();
+      return;
+    }
+
     // Awaken Dynamic Island to Full Chat view immediately
     if (window.islandApp) {
       window.islandApp.expandToTab('chat');
@@ -840,9 +867,9 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
     // Set cute mascot avatar to listening status
     this.setStatus('listening');
 
-    // Extract any command spoken immediately after wake word
+    // 3. Extract actionable command (only if starting with action verbs)
     let immediateCmd = '';
-    const match = transcript.match(/(?:hey\s+dio|hello\s+dio|hi\s+dio|ok\s+dio|yo\s+dio|dio|dior|theo|theio|deyo|dayo|deal|hey\s+deal|ideal|adios|adíos|tío|tio|dios)[,\s]+(.*)/i);
+    const match = transcript.match(/(?:hey\s+dio|hello\s+dio|hi\s+dio|ok\s+dio|yo\s+dio|dio|dior|theo|theio|deyo|dayo|deal|hey\s+deal|ideal|adios|dios)[,\s]+(open\b.*|switch\b.*|launch\b.*|kill\b.*|play\b.*|pause\b.*|what\b.*|how\b.*|search\b.*|tell\b.*|run\b.*|find\b.*|show\b.*)/i);
     if (match && match[1] && match[1].trim()) {
       immediateCmd = match[1].trim();
     }
@@ -962,19 +989,22 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
       this.isSpeakingPending = true;
       this.setStatus('speaking');
 
+      let finishedCalled = false;
       const onSpeechFinished = () => {
+        if (finishedCalled) return;
+        finishedCalled = true;
         this.isSpeakingPending = false;
         this.releaseAudioFocus(true);
         this.setStatus('idle');
 
         // === GEMINI LIVE / CHATGPT VOICE DUPLEX CONVERSATIONAL LOOP ===
         if (this.isLiveConversationMode && this.wakeWordEnabled) {
-          console.log('[Dio Voice Duplex] Assistant finished speaking -> immediately re-opening microphone for user follow-up!');
+          console.log('[Dio Voice Duplex] Assistant speech finished -> waiting 550ms for room echo to clear, then re-opening mic...');
           setTimeout(() => {
-            if (this.isLiveConversationMode && !this.isRecording && !this.isThinking) {
+            if (this.isLiveConversationMode && !this.isRecording && !this.isThinking && !this.isSpeakingPending) {
               this.startVoiceRecording();
             }
-          }, 300);
+          }, 550);
         }
       };
 
@@ -1167,16 +1197,48 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
   }
 
   async handleVoiceInput(transcript) {
+    if (!transcript || typeof transcript !== 'string') return;
+    const clean = transcript.trim();
+    if (!clean) return;
+
+    // === INSTANT VOICE COMMAND INTERCEPTS (0ms LATENCY) ===
+    // 1. Instant Stop / Dismiss / Cancel command
+    if (clean.match(/\b(stop|cancel|shut up|nevermind|pause|close|dismiss|exit|go to sleep)\b/i)) {
+      console.log('[Dio Voice] Instant STOP command received:', clean);
+      this.interruptSpeech();
+      this.isLiveConversationMode = false;
+      this.isRecording = false;
+      if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+        try { this.mediaRecorder.stop(); } catch (e) {}
+      }
+      this.updateMicUI(false);
+      this.setStatus('idle');
+      if (window.soundController) window.soundController.playPop();
+      if (window.islandApp) window.islandApp.collapse();
+      return;
+    }
+
+    // 2. Instant Snip / Crop Screen command
+    if (clean.match(/\b(snip|crop|take a snip|snip screen|crop screen|screenshot)\b/i)) {
+      console.log('[Dio Voice] Instant SNIP command received:', clean);
+      this.interruptSpeech();
+      this.renderMessage('user', `✂️ ${clean}`);
+      this.triggerScreenSnip();
+      return;
+    }
+
     // Put into prompt input and process
     const promptInput = document.getElementById('prompt-input');
-    if (promptInput) promptInput.value = transcript;
+    if (promptInput) promptInput.value = clean;
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) chatInput.value = clean;
 
     // Expand island to show response
     if (window.islandApp) {
       window.islandApp.expandToTab('chat');
     }
 
-    await this.sendMessage(transcript);
+    await this.sendMessage(clean);
   }
 
   async sendMessage(userText) {

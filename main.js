@@ -4,6 +4,25 @@ const fs = require('fs');
 const os = require('os');
 const { exec, spawn } = require('child_process');
 
+// Load local environment variables from .env
+try {
+  const envPath = path.join(__dirname, '.env');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    envContent.split('\n').forEach(line => {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        const key = match[1];
+        let val = (match[2] || '').trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        if (!process.env[key]) process.env[key] = val;
+      }
+    });
+  }
+} catch (e) {}
+
 let mainWindow = null;
 let currentWidth = 280;
 let currentHeight = 44;
@@ -170,8 +189,8 @@ function createWindow() {
     console.log('Global toggle shortcut successfully registered!');
   }
 
-  // Ensure default microphone input is calibrated to optimal volume for Hey Dio
-  exec('wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 0.95 || wpctl set-volume 53 0.95', () => {});
+  // Ensure default microphone input is unmuted and set to full volume for Hey Dio
+  exec('wpctl set-mute @DEFAULT_AUDIO_SOURCE@ 0 2>/dev/null && wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 1.0 2>/dev/null || wpctl set-volume 53 1.0 2>/dev/null', () => {});
 }
 
 // Multi-Monitor Screen Handlers
@@ -1274,6 +1293,11 @@ ipcMain.handle('system:stop-speaking', () => {
   return true;
 });
 
+// Expose environment keys to renderer
+ipcMain.handle('env:get-keys', () => ({
+  avalaiKey: process.env.AVALAI_API_KEY || ''
+}));
+
 // System Audio Playback for Dio Assistant Speech (directly outputs to HDMI/PipeWire)
 ipcMain.handle('system:speak-text', async (event, { text, voice, apiKey, model } = {}) => {
   return new Promise(async (resolve) => {
@@ -1286,13 +1310,13 @@ ipcMain.handle('system:speak-text', async (event, { text, voice, apiKey, model }
       try { activeSpeechProc.kill('SIGTERM'); } catch (e) {}
       activeSpeechProc = null;
     }
-    exec("pkill -9 -f 'ffplay.*dio_voice' 2>/dev/null; spd-say --cancel 2>/dev/null", () => {});
+    exec("pkill -9 -f 'ffplay.*dio_voice' 2>/dev/null", () => {});
 
     // Ensure HDMI / master sink is always unmuted
     exec('wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 2>/dev/null && wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.90 2>/dev/null');
 
-    if (!text || !text.trim()) {
-      return resolve({ ok: false, error: 'Empty text' });
+    if (!text || !text.trim() || !key) {
+      return resolve({ ok: false, error: 'Empty text or missing API key' });
     }
 
     const clean = text
@@ -1305,10 +1329,10 @@ ipcMain.handle('system:speak-text', async (event, { text, voice, apiKey, model }
 
     const shortText = clean.split(/(?<=[.?!])\s+/).slice(0, 3).join(' ').slice(0, 350);
 
-    // 1. Try Aval AI TTS with snappy 1.8s timeout
+    // Aval AI High-Fidelity Nova Speech (natural human voice)
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1800);
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
       const res = await fetch('https://api.avalai.ir/v1/audio/speech', {
         method: 'POST',
@@ -1336,16 +1360,16 @@ ipcMain.handle('system:speak-text', async (event, { text, voice, apiKey, model }
           resolve({ ok: true, engine: 'avalai' });
         });
         return;
+      } else {
+        const errText = await res.text();
+        console.warn('[AvalAI TTS] Speech API error:', errText);
       }
     } catch (e) {
-      // Fast fallback to instant local speech
+      console.warn('[AvalAI TTS] Speech fetch error:', e.message);
     }
 
-    // 2. Instant Local Speech Output (zero latency, directly to PipeWire/HDMI)
-    activeSpeechProc = exec(`spd-say -r -5 -p 12 "${shortText.replace(/"/g, '\\"')}"`, () => {
-      activeSpeechProc = null;
-      resolve({ ok: true, engine: 'spd-say' });
-    });
+    // Gracefully fallback to browser natural voice (never robotic spd-say)
+    resolve({ ok: false, error: 'Falling back to browser natural voice' });
   });
 });
 
