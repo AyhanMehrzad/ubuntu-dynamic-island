@@ -1186,7 +1186,7 @@ ipcMain.handle('ai:avalai', async (event, { apiKey, model, messages, tools, temp
   }
 });
 
-ipcMain.handle('ai:transcribe-audio', async (event, { audioBase64, mimeType, apiKey, model, language } = {}) => {
+ipcMain.handle('ai:transcribe-audio', async (event, { audioBase64, mimeType, apiKey, model, language, prompt } = {}) => {
   try {
     const key = apiKey || process.env.AVALAI_API_KEY || '';
     const targetModel = model || 'whisper-1';
@@ -1206,6 +1206,9 @@ ipcMain.handle('ai:transcribe-audio', async (event, { audioBase64, mimeType, api
     form.append('model', targetModel);
     if (language) {
       form.append('language', language);
+    }
+    if (prompt) {
+      form.append('prompt', prompt);
     }
 
     const res = await fetch('https://api.avalai.ir/v1/audio/transcriptions', {
@@ -1259,12 +1262,31 @@ ipcMain.handle('ai:text-to-speech', async (event, { text, voice, apiKey, model }
   }
 });
 
+// Active assistant speech process tracker for instant barge-in interruption
+let activeSpeechProc = null;
+
+ipcMain.handle('system:stop-speaking', () => {
+  if (activeSpeechProc) {
+    try { activeSpeechProc.kill('SIGTERM'); } catch (e) {}
+    activeSpeechProc = null;
+  }
+  exec("pkill -9 -f 'ffplay.*dio_voice' 2>/dev/null; spd-say --cancel 2>/dev/null", () => {});
+  return true;
+});
+
 // System Audio Playback for Dio Assistant Speech (directly outputs to HDMI/PipeWire)
 ipcMain.handle('system:speak-text', async (event, { text, voice, apiKey, model } = {}) => {
   return new Promise(async (resolve) => {
     const key = apiKey || process.env.AVALAI_API_KEY || '';
     const targetModel = model || 'tts-1';
     const targetVoice = voice || 'nova';
+
+    // Cancel any previous speech immediately
+    if (activeSpeechProc) {
+      try { activeSpeechProc.kill('SIGTERM'); } catch (e) {}
+      activeSpeechProc = null;
+    }
+    exec("pkill -9 -f 'ffplay.*dio_voice' 2>/dev/null; spd-say --cancel 2>/dev/null", () => {});
 
     // Ensure HDMI / master sink is always unmuted
     exec('wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 2>/dev/null && wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.90 2>/dev/null');
@@ -1308,7 +1330,8 @@ ipcMain.handle('system:speak-text', async (event, { text, voice, apiKey, model }
         const tmpFile = path.join(os.tmpdir(), `dio_voice_${Date.now()}.mp3`);
         fs.writeFileSync(tmpFile, Buffer.from(arrayBuffer));
 
-        exec(`ffplay -nodisp -autoexit "${tmpFile}" 2>/dev/null`, () => {
+        activeSpeechProc = exec(`ffplay -nodisp -autoexit "${tmpFile}" 2>/dev/null`, () => {
+          activeSpeechProc = null;
           try { fs.unlinkSync(tmpFile); } catch (e) {}
           resolve({ ok: true, engine: 'avalai' });
         });
@@ -1319,7 +1342,8 @@ ipcMain.handle('system:speak-text', async (event, { text, voice, apiKey, model }
     }
 
     // 2. Instant Local Speech Output (zero latency, directly to PipeWire/HDMI)
-    exec(`spd-say -r -5 -p 12 "${shortText.replace(/"/g, '\\"')}"`, () => {
+    activeSpeechProc = exec(`spd-say -r -5 -p 12 "${shortText.replace(/"/g, '\\"')}"`, () => {
+      activeSpeechProc = null;
       resolve({ ok: true, engine: 'spd-say' });
     });
   });

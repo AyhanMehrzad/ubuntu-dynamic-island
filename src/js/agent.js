@@ -19,6 +19,9 @@ class DioAgent {
     this.currentAttachment = null;
     this.isSnipActive = false;
     this.isSpeakingPending = false;
+    this.isLiveConversationMode = false;
+    this.pendingWakeSamples = null;
+    this.recordingStartTime = 0;
     this.userProfile = this.loadUserProfile();
     this.latestDesktopContext = null;
   }
@@ -165,14 +168,18 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
     if (this.isRecording) return;
     try {
       this.isRecording = true;
+      this.recordingStartTime = Date.now();
       this.audioChunks = [];
       this.latestLiveTranscript = '';
+
+      // Halt any active assistant speech if user speaks (barge-in interruption)
+      this.interruptSpeech();
 
       if (this._wakeSpeechRec) {
         try { this._wakeSpeechRec.abort(); } catch (e) {}
       }
 
-      // Expand island to full chat view immediately so user sees live transcription
+      // Expand island to full chat view immediately so user sees live feedback
       if (window.islandApp) {
         window.islandApp.expandToTab('chat');
       }
@@ -188,12 +195,12 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
       const liveIndicator = document.getElementById('chat-live-speech-indicator');
       const liveText = document.getElementById('chat-live-speech-text');
       if (liveIndicator) liveIndicator.style.display = 'flex';
-      if (liveText) liveText.textContent = "Listening... (Speak freely. Say 'stop' or tap screen when done)";
+      if (liveText) liveText.textContent = "🎙️ Listening... (Speak freely, auto-sends when you pause)";
 
       const chatInput = document.getElementById('chat-input');
       if (chatInput) {
         chatInput.value = '';
-        chatInput.placeholder = "Listening to your voice live...";
+        chatInput.placeholder = "Listening live... (Auto-submits hands-free when you pause)";
         chatInput.focus();
       }
 
@@ -212,7 +219,7 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
         });
       }
 
-      // AudioContext & Analyser for live wave animation
+      // AudioContext & Analyser for live wave animation & VAD
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!this.audioContext || this.audioContext.state === 'closed') {
         this.audioContext = new AudioCtx();
@@ -245,7 +252,6 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
           this.animFrameId = null;
         }
 
-        // Check if we already have transcribed text from live continuous speech
         const capturedText = (this.latestLiveTranscript || (chatInput ? chatInput.value : '')).trim();
 
         if (this.audioChunks.length === 0 && !capturedText) {
@@ -260,14 +266,17 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
         this.setStatus('thinking');
         this.updateMicStatusBadge('active');
 
-        // If live transcription already captured a rich query, use it immediately
+        const liveText = document.getElementById('chat-live-speech-text');
+        if (liveText) liveText.textContent = "⚡ Processing your voice...";
+
+        // If live continuous speech somehow already provided text, use it immediately
         if (capturedText && capturedText.length > 2 && !capturedText.match(/^(stop|done|that's it|enough)$/i)) {
           console.log('[Dio Voice] Using Live Speech result:', capturedText);
           this.handleVoiceInput(capturedText);
           return;
         }
 
-        // High accuracy Whisper fallback
+        // Fast high-accuracy Whisper transcription with prompt guidance
         const reader = new FileReader();
         reader.onloadend = async () => {
           try {
@@ -279,12 +288,23 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
                 audioBase64: base64Data,
                 mimeType: blob.type,
                 apiKey: avalaiKey,
-                model: 'whisper-1'
+                model: 'whisper-1',
+                prompt: 'Hey Dio, voice query, desktop assistant command, open apps, system control'
               });
 
               if (res && res.ok && res.text) {
                 const text = res.text.trim();
-                console.log('[Dio Voice] Whisper Transcribed:', text);
+                console.log('[Dio Voice] Live Voice Transcribed:', text);
+                
+                // Conversational exit detection
+                if (text.match(/\b(bye|goodbye|see you|stop listening|shut up|nevermind|exit|dismiss|cancel)\b/i)) {
+                  this.isLiveConversationMode = false;
+                  this.renderMessage('assistant', "👋 Talk to you later bro! Going to sleep.");
+                  this.speak("Talk to you later bro!");
+                  if (window.islandApp) window.islandApp.collapse();
+                  return;
+                }
+
                 if (text && !text.match(/^(\.|\?|BEEP|you)$/i)) {
                   this.handleVoiceInput(text);
                   return;
@@ -296,76 +316,24 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
           }
           this.releaseAudioFocus();
           this.setStatus('idle');
+          if (this.isLiveConversationMode) {
+            // Re-arm microphone if audio was empty or noisy
+            setTimeout(() => {
+              if (this.isLiveConversationMode && !this.isRecording && !this.isThinking) {
+                this.startVoiceRecording();
+              }
+            }, 500);
+          }
         };
         reader.readAsDataURL(blob);
       };
 
       this.mediaRecorder.start(250);
 
-      // Start live wave visualizer loop
+      // Start live wave visualizer & client-side real-time VAD loop
       this.animateLiveWaveform();
 
-      // Real-time Speech-to-Text: writes text as user talks
-      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SpeechRec) {
-        try {
-          this.liveSpeechRec = new SpeechRec();
-          this.liveSpeechRec.continuous = true;
-          this.liveSpeechRec.interimResults = true;
-          this.liveSpeechRec.lang = 'en-US';
-
-          this.liveSpeechRec.onresult = (e) => {
-            let interim = '';
-            let isFinal = false;
-            for (let i = 0; i < e.results.length; ++i) {
-              interim += e.results[i][0].transcript + ' ';
-              if (e.results[i].isFinal) isFinal = true;
-            }
-            interim = interim.trim();
-            if (interim) {
-              this.latestLiveTranscript = interim;
-              const inputEl = document.getElementById('chat-input') || document.getElementById('prompt-input');
-              if (inputEl) inputEl.value = interim;
-              const statusEl = document.getElementById('chat-live-speech-text');
-              if (statusEl) statusEl.textContent = `Live: "${interim}"`;
-
-              // Reset silence timer on each spoken phrase
-              if (this._silenceAutoSubmitTimer) {
-                clearTimeout(this._silenceAutoSubmitTimer);
-                this._silenceAutoSubmitTimer = null;
-              }
-
-              // Hands-free auto-submission: when user finishes talking, automatically submit without pressing any button!
-              const autoSubmitDelay = isFinal ? 850 : 1350;
-              if (interim.length > 2) {
-                this._silenceAutoSubmitTimer = setTimeout(() => {
-                  if (this.isRecording) {
-                    console.log('[Dio Voice] Hands-free auto-submitting transcript:', interim);
-                    this.stopVoiceRecording();
-                  }
-                }, autoSubmitDelay);
-              }
-
-              // Check if user said natural stop commands
-              if (interim.match(/\b(stop|done|that's it|enough|that is all|cancel)\b/i)) {
-                console.log('[Dio Voice] Stop keyword recognized from user voice.');
-                const cleanQuery = interim.replace(/\b(stop|done|that's it|enough|that is all|cancel)\b/gi, '').trim();
-                this.stopVoiceRecording(cleanQuery);
-              }
-            }
-          };
-
-          this.liveSpeechRec.onerror = (e) => {
-            console.log('[Dio Voice] SpeechRec notice:', e.error);
-          };
-
-          this.liveSpeechRec.start();
-        } catch (e) {
-          console.warn('[Dio Voice] Live SpeechRec initialization error:', e);
-        }
-      }
-
-      // Tap mascot avatar to finish listening manually, or say 'stop'
+      // Tap mascot avatar or live indicator to finish listening manually
       this._tapToStopListener = (e) => {
         if (e.target.closest('#mascot-avatar') || e.target.closest('#chat-live-speech-indicator')) {
           this.stopVoiceRecording();
@@ -436,10 +404,30 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
 
   toggleVoiceRecording() {
     if (this.isRecording) {
+      this.isLiveConversationMode = false;
       this.stopVoiceRecording();
     } else {
+      this.isLiveConversationMode = true;
       this.startVoiceRecording();
     }
+  }
+
+  interruptSpeech() {
+    if (!this.isSpeakingPending) return;
+    console.log('[Dio Voice] Interruption triggered: stopping assistant speech immediately.');
+    this.isSpeakingPending = false;
+    if (window.electronAPI && window.electronAPI.stopSpeaking) {
+      window.electronAPI.stopSpeaking();
+    }
+    if (this.currentAudioObj) {
+      try { this.currentAudioObj.pause(); } catch (e) {}
+      this.currentAudioObj = null;
+    }
+    if (this.synth) {
+      try { this.synth.cancel(); } catch (e) {}
+    }
+    this.releaseAudioFocus(true);
+    this.setStatus('listening');
   }
 
   animateLiveWaveform() {
@@ -448,22 +436,77 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
     const dataArray = new Uint8Array(bufferLength);
     const bars = document.querySelectorAll('#waveform .waveform-bar');
 
+    let userHasSpoken = false;
+    let speechStartTime = 0;
+    let lastVoiceDetectedTime = 0;
+    let noiseFloor = 6;
+    const vadSilenceThresholdMs = 700; // 700ms silence after speech -> auto-submit hands-free!
+
     const update = () => {
       if (!this.isRecording || !this.analyser) return;
       this.analyser.getByteFrequencyData(dataArray);
 
-      let sum = 0;
-      for (let i = 0; i < bufferLength; i++) {
-        sum += dataArray[i];
+      // Human speech energy band (bins 1 to 24: ~100Hz - 3800Hz)
+      let voiceSum = 0;
+      let maxVoiceBin = 0;
+      const binEnd = Math.min(24, bufferLength);
+      for (let i = 1; i < binEnd; i++) {
+        voiceSum += dataArray[i];
+        if (dataArray[i] > maxVoiceBin) maxVoiceBin = dataArray[i];
       }
-      const avg = sum / bufferLength;
+      const voiceBandAvg = voiceSum / (binEnd - 1);
 
+      // Animate waveform bars
       if (bars && bars.length > 0) {
         bars.forEach((bar, idx) => {
-          const val = dataArray[(idx * 4) % bufferLength] || avg;
-          const scale = Math.max(0.2, Math.min(2.5, (val / 128) * 1.8));
+          const val = dataArray[(idx * 3 + 1) % bufferLength] || voiceBandAvg;
+          const scale = Math.max(0.2, Math.min(2.8, (val / 110) * 2.0));
           bar.style.transform = `scaleY(${scale})`;
         });
+      }
+
+      // Dynamic noise floor tracking (slowly follows quiet room baseline)
+      const now = Date.now();
+      if (!userHasSpoken) {
+        noiseFloor = noiseFloor * 0.96 + voiceBandAvg * 0.04;
+      }
+
+      // Voice Activity Detection: detects when human voice speaks
+      const isVoiceActive = (voiceBandAvg > noiseFloor + 9) || (maxVoiceBin > 42);
+
+      if (isVoiceActive) {
+        if (!userHasSpoken) {
+          userHasSpoken = true;
+          speechStartTime = now;
+          this.setStatus('listening');
+        }
+        lastVoiceDetectedTime = now;
+        const statusEl = document.getElementById('chat-live-speech-text');
+        if (statusEl) statusEl.textContent = "🎙️ Dio is hearing you speak...";
+      } else {
+        if (userHasSpoken) {
+          const silenceDuration = now - lastVoiceDetectedTime;
+          const totalSpeechDuration = now - speechStartTime;
+
+          // If user spoke for at least 300ms and has paused for 700ms:
+          if (silenceDuration > vadSilenceThresholdMs && totalSpeechDuration >= 300) {
+            console.log(`[Dio Live VAD] Speech pause detected (${silenceDuration}ms silence). Hands-free auto-submitting!`);
+            userHasSpoken = false;
+            const statusEl = document.getElementById('chat-live-speech-text');
+            if (statusEl) statusEl.textContent = "⚡ Processing your voice...";
+            this.stopVoiceRecording();
+            return;
+          }
+        } else if (this.isLiveConversationMode) {
+          // If in continuous conversational mode and no speech occurred for 12 seconds:
+          if (now - this.recordingStartTime > 12000) {
+            console.log('[Dio Live VAD] Conversation session idle timeout (12s). Returning to sleep.');
+            this.isLiveConversationMode = false;
+            this.stopVoiceRecording();
+            if (window.islandApp) window.islandApp.collapse();
+            return;
+          }
+        }
       }
 
       this.animFrameId = requestAnimationFrame(update);
@@ -501,7 +544,7 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
       // ScriptProcessorNode to capture real-time PCM audio chunks
       this.wakeProcessor = this.wakeContext.createScriptProcessor(2048, 1, 1);
       
-      let ambientNoiseRms = 0.005;
+      let ambientNoiseRms = 0.008;
       let speechActive = false;
       let speechStartTimestamp = 0;
       let consecutiveQuietFrames = 0;
@@ -522,12 +565,10 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
         }
         const rms = Math.sqrt(sumSq / len);
 
-        // Slowly update ambient noise baseline
+        // Slowly follow room ambient noise floor
         ambientNoiseRms = ambientNoiseRms * 0.98 + rms * 0.02;
-        const voiceThreshold = Math.max(0.005, ambientNoiseRms * 1.25 + 0.003);
-
-        // If an utterance is currently being verified by API, continue buffering without triggering duplicates
-        if (isTranscribingWake) return;
+        // Optimal speech threshold to avoid false-triggering on room hum or fan noise
+        const voiceThreshold = Math.max(0.016, ambientNoiseRms * 1.6 + 0.008);
 
         const now = Date.now();
         if (rms > voiceThreshold) {
@@ -543,27 +584,41 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
             consecutiveQuietFrames++;
             const speechDuration = now - speechStartTimestamp;
 
-            // When quiet for ~200ms
+            // When quiet for ~250ms (2 consecutive quiet frames)
             if (consecutiveQuietFrames >= 2) {
               speechActive = false;
               consecutiveQuietFrames = 0;
 
-              // Check if speech lasted between 200ms and 5500ms
-              if (speechDuration >= 200 && speechDuration <= 5500) {
-                isTranscribingWake = true;
+              // Check if speech lasted between 300ms and 4500ms
+              if (speechDuration >= 300 && speechDuration <= 4500) {
                 const totalSamplesNeeded = Math.min(
                   this.RING_CAPACITY,
-                  Math.floor(((speechDuration + 400) / 1000) * this.RING_SAMPLE_RATE)
+                  Math.floor(((speechDuration + 450) / 1000) * this.RING_SAMPLE_RATE)
                 );
                 
-                // Extract pre-buffered audio containing the entire utterance
+                // Extract pre-buffered audio containing the utterance
                 const utteranceSamples = this.extractRingSamples(totalSamplesNeeded);
-                this.verifyWakeWordUtterance(utteranceSamples, () => {
-                  isTranscribingWake = false;
-                });
+
+                if (isTranscribingWake) {
+                  // Buffer recent utterance so speech is not discarded while busy
+                  this.pendingWakeSamples = utteranceSamples;
+                } else {
+                  isTranscribingWake = true;
+                  const runVerification = (samplesToVerify) => {
+                    this.verifyWakeWordUtterance(samplesToVerify, () => {
+                      if (this.pendingWakeSamples) {
+                        const queued = this.pendingWakeSamples;
+                        this.pendingWakeSamples = null;
+                        runVerification(queued);
+                      } else {
+                        isTranscribingWake = false;
+                      }
+                    });
+                  };
+                  runVerification(utteranceSamples);
+                }
               }
             } else if (speechDuration > 6000) {
-              // Reset if speech exceeded 6 seconds
               speechActive = false;
               consecutiveQuietFrames = 0;
             }
@@ -696,7 +751,8 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
               mimeType: 'audio/wav',
               apiKey: avalaiKey,
               model: 'whisper-1',
-              language: 'en'
+              language: 'en',
+              prompt: 'Hey Dio, Dio, hello Dio, hi Dio, ok Dio, wake word'
             });
 
             if (res && res.ok && res.text) {
@@ -704,15 +760,14 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
               console.log('[WakeWord Engine] Audio captured & transcribed:', text);
 
               const wakeKeywords = [
-                'dio', 'dior', 'theo', 'theio', 'deyo', 'dayo', 'radio', 'hey dio',
-                'hi dio', 'hello dio', 'ok dio', 'yo dio', 'deal', 'do', 'hey deal',
-                'hey theio', 'hey dior', 'a dio', 'hey yo', 'hey dill', 'hideo', 'diego',
-                'ideal', 'adios', 'adíos', 'tío', 'tio', 'dios', 'hey dios', 'd.o.',
-                'd-o', 'd o', 'video', 'hey video', 'hey guy', 'hey bro', 'hey dude',
-                'hey there', 'hey you', 'audio', 'hey audio', 'tell dio', 'hey'
+                'hey dio', 'hi dio', 'hello dio', 'ok dio', 'yo dio',
+                'dio', 'dior', 'theo', 'theio', 'deyo', 'dayo',
+                'deal', 'hey deal', 'hey dior', 'hideo', 'diego',
+                'ideal', 'adios', 'adíos', 'tío', 'tio', 'dios', 'hey dios'
               ];
-              const isMatch = wakeKeywords.some(kw => text.includes(kw)) ||
-                              (this.wakeWord && text.includes(this.wakeWord));
+              // Robust whole-word regex matching to eliminate false alarms
+              const isMatch = wakeKeywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(text)) ||
+                              (this.wakeWord && new RegExp(`\\b${this.wakeWord}\\b`, 'i').test(text));
 
               if (isMatch) {
                 console.log('[WakeWord Engine] MATCH TRIGGERED: "Hey Dio" ->', text);
@@ -769,6 +824,11 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
   handleWakeWordTrigger(transcript) {
     if (this.isThinking) return;
 
+    this.isLiveConversationMode = true;
+
+    // Interrupt any active assistant speech
+    this.interruptSpeech();
+
     // Play pleasant haptic chime
     if (window.soundController) window.soundController.playPop();
 
@@ -791,13 +851,13 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
     const salutation = user.tone === 'bro' ? 'bro' : (user.tone === 'jarvis' ? 'sir' : user.name || 'there');
     const greetingText = user.tone === 'bro' ? `Hey ${salutation}! What's up?` : (user.tone === 'jarvis' ? `At your service, ${salutation}.` : `Hello ${salutation}, I'm listening.`);
 
-    if (immediateCmd) {
+    if (immediateCmd && immediateCmd.length > 2) {
       this.renderMessage('assistant', `👋 **Hey!** ${greetingText}\n\n*Executing:* \`${immediateCmd}\`...`);
       this.speak(`${greetingText} Executing ${immediateCmd}`);
       this.sendMessage(immediateCmd);
     } else {
-      this.renderMessage('assistant', `👋 **${greetingText}** I'm listening live. Speak your command or question now...`);
-      // Start recording immediately without speaking over the user's microphone!
+      this.renderMessage('assistant', `👋 **${greetingText}** I'm listening live. Speak freely, I will answer automatically when you pause.`);
+      // Start recording immediately in continuous live conversation mode!
       this.startVoiceRecording();
     }
   }
@@ -902,6 +962,22 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
       this.isSpeakingPending = true;
       this.setStatus('speaking');
 
+      const onSpeechFinished = () => {
+        this.isSpeakingPending = false;
+        this.releaseAudioFocus(true);
+        this.setStatus('idle');
+
+        // === GEMINI LIVE / CHATGPT VOICE DUPLEX CONVERSATIONAL LOOP ===
+        if (this.isLiveConversationMode && this.wakeWordEnabled) {
+          console.log('[Dio Voice Duplex] Assistant finished speaking -> immediately re-opening microphone for user follow-up!');
+          setTimeout(() => {
+            if (this.isLiveConversationMode && !this.isRecording && !this.isThinking) {
+              this.startVoiceRecording();
+            }
+          }, 300);
+        }
+      };
+
       // Strip code blocks, HTML, and markdown symbols
       let cleanText = text
         .replace(/```[\s\S]*?```/g, '')
@@ -912,9 +988,7 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
         .trim();
 
       if (!cleanText) {
-        this.isSpeakingPending = false;
-        this.releaseAudioFocus(true);
-        this.setStatus('idle');
+        onSpeechFinished();
         return;
       }
 
@@ -936,9 +1010,7 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
           });
 
           if (res && res.ok) {
-            this.isSpeakingPending = false;
-            this.releaseAudioFocus(true); // Automatically opens and resumes media as soon as Dio finishes speaking!
-            this.setStatus('idle');
+            onSpeechFinished();
             return;
           }
         } catch (nativeErr) {
@@ -966,16 +1038,12 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
 
             audio.onended = () => {
               this.currentAudioObj = null;
-              this.isSpeakingPending = false;
-              this.releaseAudioFocus(true); // Resumes song when Dio finishes speaking
-              this.setStatus('idle');
+              onSpeechFinished();
             };
 
             audio.onerror = () => {
               this.currentAudioObj = null;
-              this.isSpeakingPending = false;
-              this.releaseAudioFocus(true);
-              this.setStatus('idle');
+              onSpeechFinished();
             };
 
             await audio.play();
@@ -995,22 +1063,16 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
         utterance.pitch = this.voicePitch || 1.0;
 
         utterance.onend = () => {
-          this.isSpeakingPending = false;
-          this.releaseAudioFocus(true); // Resumes song when speech ends
-          this.setStatus('idle');
+          onSpeechFinished();
         };
 
         utterance.onerror = () => {
-          this.isSpeakingPending = false;
-          this.releaseAudioFocus(true);
-          this.setStatus('idle');
+          onSpeechFinished();
         };
 
         this.synth.speak(utterance);
       } else {
-        this.isSpeakingPending = false;
-        this.releaseAudioFocus(true);
-        this.setStatus('idle');
+        onSpeechFinished();
       }
     } catch (e) {
       console.warn('Voice speak error:', e);

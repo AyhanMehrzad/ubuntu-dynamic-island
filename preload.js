@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   transcribeAudio: (params) => ipcRenderer.invoke('ai:transcribe-audio', params),
   textToSpeech: (params) => ipcRenderer.invoke('ai:text-to-speech', params),
   speakText: (params) => ipcRenderer.invoke('system:speak-text', params),
+  stopSpeaking: () => ipcRenderer.invoke('system:stop-speaking'),
   callCustomEndpoint: (params) => ipcRenderer.invoke('ai:custom', params),
   callNotion: (params) => ipcRenderer.invoke('notion:api', params),
 
