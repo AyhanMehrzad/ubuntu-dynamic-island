@@ -1351,7 +1351,25 @@ CRITICAL LIVE VOICE RESPONSE RULES:
       } else if (provider === 'avalai') {
         const apiKey = localStorage.getItem('avalai_key') || '';
         const model = localStorage.getItem('avalai_model') || 'gpt-4o-mini';
-        assistantReply = await this.callAvalAI(apiKey, model, queryText, attachment, desktopContext);
+        if (!apiKey) {
+          // If no Aval AI key is set, try local RTX 4050 model first
+          try {
+            assistantReply = await this.callCustomAPI(null, queryText, desktopContext);
+          } catch (e) {
+            assistantReply = await this.callAvalAI(apiKey, model, queryText, attachment, desktopContext);
+          }
+        } else {
+          try {
+            assistantReply = await this.callAvalAI(apiKey, model, queryText, attachment, desktopContext);
+          } catch (e) {
+            console.warn('AvalAI call failed, falling back to local RTX 4050 Ollama model:', e.message);
+            try {
+              assistantReply = await this.callCustomAPI(null, queryText, desktopContext);
+            } catch (localErr) {
+              throw e;
+            }
+          }
+        }
       } else if (provider === 'openrouter') {
         const apiKey = localStorage.getItem('openrouter_key') || '';
         const model = localStorage.getItem('openrouter_model') || 'openai/gpt-4o-mini';
@@ -1958,18 +1976,30 @@ CRITICAL LIVE VOICE RESPONSE RULES:
   }
 
   async callCustomAPI(endpoint, userText, desktopContext = null) {
+    const customModel = localStorage.getItem('custom_model') || 'llama3.2:3b';
+    const apiKey = localStorage.getItem('custom_key') || '';
     const messages = [
       { role: 'system', content: this.getPersonalizedSystemPrompt(desktopContext) },
       ...this.history.slice(-6),
       { role: 'user', content: userText }
     ];
     if (window.electronAPI && window.electronAPI.callCustomEndpoint) {
-      const res = await window.electronAPI.callCustomEndpoint({ endpoint, messages });
-      if (res.ok && res.data && res.data.choices) {
+      const res = await window.electronAPI.callCustomEndpoint({
+        endpoint: endpoint || 'http://localhost:11434/v1/chat/completions',
+        apiKey,
+        model: customModel,
+        messages,
+        max_tokens: 65,
+        temperature: 0.35
+      });
+      if (res.ok && res.data && res.data.choices && res.data.choices[0]) {
         return res.data.choices[0].message.content;
       }
+      if (res.error) {
+        throw new Error(res.error);
+      }
     }
-    return "Custom endpoint could not be reached.";
+    return "Custom local model could not be reached. Ensure Ollama is running at http://localhost:11434.";
   }
 
   async executeAgentAction(action, messageElement) {

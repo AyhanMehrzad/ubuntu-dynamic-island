@@ -72,11 +72,11 @@ class SettingsManager {
     if (gemKey) gemKey.value = localStorage.getItem('gemini_key') || '';
     if (gemModel) gemModel.value = localStorage.getItem('gemini_model') || 'gemini-2.0-flash';
 
-    // Custom
+    // Custom / Local Ollama
     const customEndpoint = document.getElementById('setting-custom-endpoint');
     const customModel = document.getElementById('setting-custom-model');
     if (customEndpoint) customEndpoint.value = localStorage.getItem('custom_endpoint') || 'http://localhost:11434/v1/chat/completions';
-    if (customModel) customModel.value = localStorage.getItem('custom_model') || 'llama3';
+    if (customModel) customModel.value = localStorage.getItem('custom_model') || 'llama3.2:3b';
 
     // Notion
     const notionTok = document.getElementById('setting-notion-token');
@@ -367,6 +367,57 @@ class SettingsManager {
           btnTestGem.textContent = '❌ Connection Error';
         }
         setTimeout(() => { btnTestGem.textContent = 'Test Gemini Key'; }, 3500);
+      });
+    }
+
+    // Custom / Local Ollama Test
+    const btnTestCustom = document.getElementById('btn-test-custom-endpoint');
+    if (btnTestCustom) {
+      btnTestCustom.addEventListener('click', async () => {
+        const ep = document.getElementById('setting-custom-endpoint')?.value.trim() || 'http://localhost:11434/v1/chat/completions';
+        const mod = document.getElementById('setting-custom-model')?.value.trim() || 'llama3.2:3b';
+        btnTestCustom.textContent = 'Pinging Ollama...';
+        try {
+          if (window.electronAPI && window.electronAPI.callCustomEndpoint) {
+            const res = await window.electronAPI.callCustomEndpoint({
+              endpoint: ep,
+              model: mod,
+              messages: [{ role: 'user', content: 'Say Ready in one word' }],
+              max_tokens: 10
+            });
+            if (res.ok) {
+              btnTestCustom.textContent = '✅ Local Ollama (RTX 4050) Ready!';
+              if (window.soundController) window.soundController.playSuccess();
+            } else {
+              const errMsg = res.error || `HTTP ${res.status}`;
+              btnTestCustom.textContent = `❌ ${errMsg.substring(0, 22)}`;
+            }
+          }
+        } catch (e) {
+          btnTestCustom.textContent = '❌ Offline / Unreachable';
+        }
+        setTimeout(() => { btnTestCustom.textContent = 'Test Local Model (Ollama)'; }, 3500);
+      });
+    }
+
+    // Check / Start Ollama Service Button
+    const btnRestartOllama = document.getElementById('btn-restart-ollama');
+    if (btnRestartOllama) {
+      btnRestartOllama.addEventListener('click', async () => {
+        btnRestartOllama.textContent = 'Checking Daemon...';
+        try {
+          const res = await fetch('http://127.0.0.1:11434/api/tags');
+          if (res.ok) {
+            const data = await res.json();
+            const models = (data.models || []).map(m => m.name).join(', ') || 'No models';
+            btnRestartOllama.textContent = `🟢 Running: ${models.substring(0, 16)}`;
+          } else {
+            btnRestartOllama.textContent = '🔴 Ollama Error';
+          }
+        } catch (e) {
+          btnRestartOllama.textContent = '🔴 Ollama Offline';
+        }
+        setTimeout(() => { btnRestartOllama.textContent = 'Check Service Status'; }, 3500);
       });
     }
 

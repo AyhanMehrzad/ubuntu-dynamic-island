@@ -1410,19 +1410,25 @@ ipcMain.handle('ai:gemini', async (event, { apiKey, model, contents, systemInstr
   }
 });
 
-ipcMain.handle('ai:custom', async (event, { endpoint, apiKey, model, messages }) => {
+ipcMain.handle('ai:custom', async (event, { endpoint, apiKey, model, messages, max_tokens, temperature } = {}) => {
   try {
     const targetEndpoint = endpoint || 'http://localhost:11434/v1/chat/completions';
     const headers = { 'Content-Type': 'application/json' };
     if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
+    const body = {
+      model: model || 'llama3.2:3b',
+      messages,
+      temperature: temperature !== undefined ? temperature : 0.35
+    };
+    if (max_tokens) {
+      body.max_tokens = max_tokens;
+    }
+
     const res = await fetch(targetEndpoint, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        model: model || 'default',
-        messages
-      })
+      body: JSON.stringify(body)
     });
 
     const data = await res.json();

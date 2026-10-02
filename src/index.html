@@ -657,7 +657,7 @@
                   <option value="avalai">⚡ Aval AI (Ultra-Fast Iranian Gateway & Global Models) ★ Favorite</option>
                   <option value="openrouter">OpenRouter API (Xiaomi MiMo, Claude, DeepSeek, Free)</option>
                   <option value="gemini">Google Gemini API (Gemini 3.8 Flash, 1.5 Pro)</option>
-                  <option value="custom">Antigravity / Local LLM (Ollama / Local Proxy)</option>
+                  <option value="custom">🚀 Local Offline AI (Ollama + RTX 4050 GPU) - Zero Latency</option>
                   <option value="builtin">Built-in Offline System Agent</option>
                 </select>
               </div>
@@ -740,14 +740,20 @@
                 </div>
               </div>
 
-              <!-- Custom / Antigravity Group -->
+              <!-- Custom / Local Ollama Group -->
               <div id="group-custom" class="settings-card" style="flex-direction: column; align-items: stretch; gap: 10px; display: none;">
                 <div class="setting-info">
-                  <div class="setting-title">Custom / Antigravity Endpoint</div>
-                  <div class="setting-desc">Connect to local Ollama or Antigravity local agent server</div>
+                  <div class="setting-title">Local Offline AI (Ollama + RTX 4050 GPU)</div>
+                  <div class="setting-desc">Zero latency, offline conversational intelligence directly powered by your NVIDIA GPU</div>
                 </div>
-                <input type="text" id="setting-custom-endpoint" class="form-input" placeholder="http://localhost:11434/v1/chat/completions">
-                <input type="text" id="setting-custom-model" class="form-input" placeholder="Model name (e.g. llama3, mistral, qwen)">
+                <div style="display: flex; gap: 8px;">
+                  <input type="text" id="setting-custom-endpoint" class="form-input" style="flex: 2;" placeholder="http://localhost:11434/v1/chat/completions">
+                  <input type="text" id="setting-custom-model" class="form-input" style="flex: 1;" placeholder="llama3.2:3b">
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button type="button" id="btn-test-custom-endpoint" class="mini-btn" style="flex: 1; background: var(--bg-surface); border: 1px solid var(--border-subtle);">Test Local Model (Ollama)</button>
+                  <button type="button" id="btn-restart-ollama" class="mini-btn" style="flex: 1; background: rgba(99, 102, 241, 0.12); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">Check Service Status</button>
+                </div>
               </div>
 
               <!-- Notion Token Group -->
