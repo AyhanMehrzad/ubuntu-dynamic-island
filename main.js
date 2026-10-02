@@ -1118,17 +1118,18 @@ ipcMain.handle('autostart:set-status', (event, enabled) => {
       fs.mkdirSync(autostartDir, { recursive: true });
     }
     if (enabled) {
-      const electronPath = process.execPath;
-      const appPath = path.resolve(__dirname);
+      const launchScript = path.join(__dirname, 'scripts', 'launch.sh');
+      const iconPath = path.join(__dirname, 'assets', 'icon.png');
       const desktopEntry = `[Desktop Entry]
 Type=Application
-Exec=${electronPath} ${appPath} --no-sandbox
+Exec=${launchScript}
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=2
 Name=Ubuntu Dynamic Island
 Comment=Apple-Style Dynamic Island with Dio AI Agent
-Icon=utilities-terminal
+Icon=${fs.existsSync(iconPath) ? iconPath : 'utilities-terminal'}
 Categories=Utility;
 `;
       fs.writeFileSync(autostartFile, desktopEntry, 'utf8');
