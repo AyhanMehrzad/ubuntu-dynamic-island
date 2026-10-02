@@ -1420,8 +1420,9 @@ ipcMain.handle('ai:custom', async (event, { endpoint, apiKey, model, messages, m
     const headers = { 'Content-Type': 'application/json' };
     if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
+    let requestedModel = model || 'llama3.2:3b';
     const body = {
-      model: model || 'llama3.2:3b',
+      model: requestedModel,
       messages,
       temperature: temperature !== undefined ? temperature : 0.35
     };
@@ -1432,7 +1433,7 @@ ipcMain.handle('ai:custom', async (event, { endpoint, apiKey, model, messages, m
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 18000);
 
-    const res = await fetch(targetEndpoint, {
+    let res = await fetch(targetEndpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -1440,8 +1441,33 @@ ipcMain.handle('ai:custom', async (event, { endpoint, apiKey, model, messages, m
     });
     clearTimeout(timeout);
 
-    const data = await res.json();
-    return { ok: res.ok, status: res.status, data };
+    let data = await res.json();
+
+    // If requested model was not found (404), seamlessly retry with llama3.2:3b or gemma2:2b
+    if (!res.ok && res.status === 404 && requestedModel !== 'llama3.2:3b') {
+      console.warn(`[ai:custom] Model '${requestedModel}' not found (404), auto-retrying with llama3.2:3b...`);
+      body.model = 'llama3.2:3b';
+      const retryController = new AbortController();
+      const retryTimeout = setTimeout(() => retryController.abort(), 18000);
+      try {
+        const retryRes = await fetch(targetEndpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          signal: retryController.signal
+        });
+        clearTimeout(retryTimeout);
+        if (retryRes.ok) {
+          res = retryRes;
+          data = await retryRes.json();
+        }
+      } catch (retryErr) {
+        clearTimeout(retryTimeout);
+      }
+    }
+
+    const errorMsg = !res.ok ? ((data && data.error && (data.error.message || data.error)) || `HTTP ${res.status}`) : undefined;
+    return { ok: res.ok, status: res.status, data, error: errorMsg };
   } catch (err) {
     return { ok: false, error: err.message };
   }

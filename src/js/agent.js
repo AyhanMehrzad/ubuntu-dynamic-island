@@ -1334,9 +1334,13 @@ CRITICAL LIVE VOICE RESPONSE RULES:
     // Add to history
     this.history.push({ role: 'user', content: queryText });
 
-    const savedProvider = localStorage.getItem('ai_provider');
+    let savedProvider = localStorage.getItem('ai_provider');
     const avalaiKey = localStorage.getItem('avalai_key') || '';
-    const provider = savedProvider || (avalaiKey ? 'avalai' : 'custom');
+    if (!savedProvider || savedProvider === 'builtin') {
+      savedProvider = avalaiKey ? 'avalai' : 'custom';
+      localStorage.setItem('ai_provider', savedProvider);
+    }
+    const provider = savedProvider;
 
     try {
       let assistantReply = '';
@@ -1458,6 +1462,27 @@ CRITICAL LIVE VOICE RESPONSE RULES:
       const now = new Date();
       return {
         reply: `It is ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} on ${now.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}, ${salutation}.`,
+        action: null
+      };
+    }
+
+    if (lower.includes('what model') || lower.includes('which model') || lower.includes('what ai are you') || lower.includes('current model') || lower.includes('what engine')) {
+      const activeProvider = localStorage.getItem('ai_provider') || 'custom';
+      let modelInfo = '';
+      if (activeProvider === 'custom') {
+        const curMod = localStorage.getItem('custom_model') || 'llama3.2:3b';
+        modelInfo = `I am running locally on your NVIDIA RTX 4050 GPU using **${curMod}** via Ollama with zero cloud API keys needed!`;
+      } else if (activeProvider === 'avalai') {
+        modelInfo = `I am powered by Aval AI using model **${localStorage.getItem('avalai_model') || 'gpt-4o-mini'}**.`;
+      } else if (activeProvider === 'gemini') {
+        modelInfo = `I am powered by Google Gemini (**${localStorage.getItem('gemini_model') || 'gemini-2.0-flash'}**).`;
+      } else if (activeProvider === 'openrouter') {
+        modelInfo = `I am powered by OpenRouter (**${localStorage.getItem('openrouter_model') || 'openai/gpt-4o-mini'}**).`;
+      } else {
+        modelInfo = `I am running locally on your RTX 4050 GPU using **llama3.2:3b**!`;
+      }
+      return {
+        reply: modelInfo,
         action: null
       };
     }
@@ -1983,21 +2008,25 @@ CRITICAL LIVE VOICE RESPONSE RULES:
     ];
     if (window.electronAPI && window.electronAPI.callCustomEndpoint) {
       const res = await window.electronAPI.callCustomEndpoint({
-        endpoint: endpoint || 'http://localhost:11434/v1/chat/completions',
+        endpoint: endpoint || 'http://127.0.0.1:11434/v1/chat/completions',
         apiKey,
         model: customModel,
         messages,
         max_tokens: 65,
         temperature: 0.35
       });
-      if (res.ok && res.data && res.data.choices && res.data.choices[0]) {
+      if (res && res.ok && res.data && res.data.choices && res.data.choices[0] && res.data.choices[0].message) {
         return res.data.choices[0].message.content;
       }
-      if (res.error) {
+      if (res && res.error) {
         throw new Error(res.error);
       }
+      if (res && res.data && res.data.error) {
+        const msg = typeof res.data.error === 'string' ? res.data.error : (res.data.error.message || JSON.stringify(res.data.error));
+        throw new Error(msg);
+      }
     }
-    return "Custom local model could not be reached. Ensure Ollama is running at http://localhost:11434.";
+    return "Local GPU model could not be reached. Ensure Ollama service is active at http://127.0.0.1:11434.";
   }
 
   async executeAgentAction(action, messageElement) {

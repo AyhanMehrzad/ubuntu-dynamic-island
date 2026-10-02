@@ -49,7 +49,11 @@ class SettingsManager {
     // AI Provider
     const providerSelect = document.getElementById('setting-ai-provider');
     const avalKeyVal = localStorage.getItem('avalai_key') || '';
-    const savedProvider = localStorage.getItem('ai_provider') || (avalKeyVal ? 'avalai' : 'custom');
+    let savedProvider = localStorage.getItem('ai_provider');
+    if (!savedProvider || savedProvider === 'builtin') {
+      savedProvider = avalKeyVal ? 'avalai' : 'custom';
+      localStorage.setItem('ai_provider', savedProvider);
+    }
     if (providerSelect) {
       providerSelect.value = savedProvider;
       this.updateProviderVisibility(savedProvider);
