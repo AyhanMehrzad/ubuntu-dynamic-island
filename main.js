@@ -491,53 +491,52 @@ ipcMain.handle('system:type-text', async (event, { text, pressEnter } = {}) => {
   });
 });
 
-ipcMain.handle('system:get-desktop-context', async () => {
-  return new Promise((resolve) => {
-    const pyScript = `
-import subprocess, json, datetime
+// Zero-latency background desktop context cache
+let cachedDesktopContext = { activeWindow: 'Antigravity IDE', openWindows: ['Antigravity IDE'], timestamp: new Date().toLocaleString() };
 
-result = {
-    "activeWindow": "",
-    "openWindows": [],
-    "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+function updateDesktopContextAsync() {
+  exec('xprop -root _NET_ACTIVE_WINDOW 2>/dev/null; wmctrl -l 2>/dev/null', (err, stdout) => {
+    if (err || !stdout) return;
+    try {
+      const lines = stdout.split('\n');
+      let activeHex = null;
+      const openWindows = [];
+      let activeWindow = '';
+
+      for (const line of lines) {
+        if (line.includes('_NET_ACTIVE_WINDOW(WINDOW)')) {
+          const match = line.match(/0x[0-9a-fA-F]+/);
+          if (match) activeHex = parseInt(match[0], 16);
+        } else if (line.trim().startsWith('0x')) {
+          const parts = line.split(/\s+/);
+          if (parts.length >= 4) {
+            const wid = parseInt(parts[0], 16);
+            const title = parts.slice(3).join(' ').trim();
+            if (title && !title.startsWith('Desktop Icons') && !title.includes('v2rayN')) {
+              openWindows.push(title);
+              if (activeHex !== null && wid === activeHex) {
+                activeWindow = title;
+              }
+            }
+          }
+        }
+      }
+
+      cachedDesktopContext = {
+        activeWindow: activeWindow || cachedDesktopContext.activeWindow || 'Desktop',
+        openWindows: openWindows.length > 0 ? openWindows : cachedDesktopContext.openWindows,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+    } catch (e) {}
+  });
 }
 
-try:
-    active_id_out = subprocess.check_output("xprop -root _NET_ACTIVE_WINDOW", shell=True, stderr=subprocess.DEVNULL).decode()
-    win_id = active_id_out.split("#")[-1].strip().split()[0]
-    win_int = int(win_id, 16)
-except Exception:
-    win_int = None
+// Background poller updates every 2 seconds without blocking any IPC
+setInterval(updateDesktopContextAsync, 2000);
+updateDesktopContextAsync();
 
-try:
-    windows_out = subprocess.check_output("wmctrl -l", shell=True, stderr=subprocess.DEVNULL).decode().splitlines()
-    for line in windows_out:
-        parts = line.split(None, 3)
-        if len(parts) >= 4:
-            wid = int(parts[0], 16)
-            title = parts[3].strip()
-            if not title or title.startswith("Desktop Icons"):
-                continue
-            result["openWindows"].append(title)
-            if win_int is not None and wid == win_int:
-                result["activeWindow"] = title
-except Exception:
-    pass
-
-print(json.dumps(result))
-`;
-    exec(`python3 -c '${pyScript}'`, (err, stdout) => {
-      if (err || !stdout) {
-        return resolve({ activeWindow: '', openWindows: [], timestamp: new Date().toLocaleString() });
-      }
-      try {
-        const data = JSON.parse(stdout.trim());
-        resolve(data);
-      } catch (e) {
-        resolve({ activeWindow: '', openWindows: [], timestamp: new Date().toLocaleString() });
-      }
-    });
-  });
+ipcMain.handle('system:get-desktop-context', async () => {
+  return cachedDesktopContext;
 });
 
 ipcMain.handle('system:web-search', async (event, query) => {
@@ -1177,13 +1176,16 @@ ipcMain.handle('ai:openrouter', async (event, { apiKey, model, messages, tools, 
   }
 });
 
-ipcMain.handle('ai:avalai', async (event, { apiKey, model, messages, tools, temperature }) => {
+ipcMain.handle('ai:avalai', async (event, { apiKey, model, messages, tools, temperature, max_tokens } = {}) => {
   try {
     const body = {
       model: model || 'gpt-4o-mini',
       messages,
-      temperature: temperature !== undefined ? temperature : 0.7
+      temperature: temperature !== undefined ? temperature : 0.35
     };
+    if (max_tokens) {
+      body.max_tokens = max_tokens;
+    }
     if (tools && tools.length > 0) {
       body.tools = tools;
       body.tool_choice = 'auto';
@@ -1325,9 +1327,16 @@ ipcMain.handle('system:speak-text', async (event, { text, voice, apiKey, model }
       .replace(/<[^>]*>/g, '')
       .replace(/[*#_~]/g, '')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .trim();
-
-    const shortText = clean.split(/(?<=[.?!])\s+/).slice(0, 3).join(' ').slice(0, 350);
+    // First-sentence punchy speech synthesis for instant playback (<2.0s generation)
+    const sentences = clean.split(/(?<=[.?!])\s+/).filter(s => s && s.trim());
+    let shortText = sentences[0] || clean;
+    if (shortText.length < 45 && sentences.length > 1) {
+      shortText = `${sentences[0]} ${sentences[1]}`;
+    }
+    if (shortText.length > 115) {
+      shortText = shortText.slice(0, 110).replace(/[,\s]+[^,\s]*$/, '') + '.';
+    }
+    shortText = shortText.trim();
 
     // Aval AI High-Fidelity Nova Speech (natural human voice)
     try {

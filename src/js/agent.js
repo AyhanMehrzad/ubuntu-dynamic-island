@@ -133,7 +133,10 @@ You can switch to apps, focus windows, type into them, and execute commands.
 NEVER say "I cannot interact with other applications" or "I am limited to text". You CAN and DO control desktop apps!
 When asked to switch to or communicate with an app like Antigravity, indicate you are doing it and wrap bash commands like \`\`\`bash\nwmctrl -a "Antigravity"\n\`\`\` in code blocks.
 ${contextSection}
-Keep answers snappy, charismatic, and conversational for real-time text-to-speech voice playback.`;
+CRITICAL LIVE VOICE RESPONSE RULES:
+• You are speaking live in real-time. Keep verbal replies ultra-concise, natural, punchy, and under 20 words whenever possible.
+• Give the direct answer immediately in the first sentence without conversational filler or disclaimers.
+• If executing an action or switching apps, state what you are doing in one crisp sentence.`;
   }
 
   init() {
@@ -180,6 +183,12 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
       this.recordingStartTime = Date.now();
       this.audioChunks = [];
       this.latestLiveTranscript = '';
+
+      // Live 16kHz PCM audio capture buffer for rapid sliced Whisper submission
+      this.voicePcmChunks = [];
+      this.voicePcmTimestamps = [];
+      this.speechDetectedStart = 0;
+      this.speechDetectedEnd = 0;
 
       // Halt any active assistant speech if user speaks (barge-in interruption)
       this.interruptSpeech();
@@ -231,7 +240,7 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
       // AudioContext & Analyser for live wave animation & VAD
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!this.audioContext || this.audioContext.state === 'closed') {
-        this.audioContext = new AudioCtx();
+        this.audioContext = new AudioCtx({ sampleRate: 16000 });
       }
       if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume();
@@ -242,102 +251,33 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
       this.analyser.fftSize = 256;
       source.connect(this.analyser);
 
-      // Setup MediaRecorder for high-fidelity fallback audio
-      const options = { mimeType: 'audio/webm' };
-      if (!MediaRecorder.isTypeSupported('audio/webm')) {
-        delete options.mimeType;
+      // Real-time 16kHz PCM stream capture for ultra-fast sliced WAV audio
+      if (this.voiceProcessor) {
+        try { this.voiceProcessor.disconnect(); } catch (e) {}
       }
-      this.mediaRecorder = new MediaRecorder(this.audioStream, options);
+      this.voiceProcessor = this.audioContext.createScriptProcessor(2048, 1, 1);
+      this.voiceProcessor.onaudioprocess = (e) => {
+        if (!this.isRecording) return;
+        const inputData = e.inputBuffer.getChannelData(0);
+        const copy = new Float32Array(inputData.length);
+        copy.set(inputData);
+        const now = Date.now();
+        this.voicePcmChunks.push(copy);
+        this.voicePcmTimestamps.push(now);
 
-      this.mediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          this.audioChunks.push(e.data);
+        // Keep rolling buffer of recent ~12 seconds
+        if (this.voicePcmChunks.length > 95) {
+          this.voicePcmChunks.shift();
+          this.voicePcmTimestamps.shift();
         }
       };
-
-      this.mediaRecorder.onstop = async () => {
-        if (this.animFrameId) {
-          cancelAnimationFrame(this.animFrameId);
-          this.animFrameId = null;
-        }
-
-        const capturedText = (this.latestLiveTranscript || (chatInput ? chatInput.value : '')).trim();
-
-        if (this.audioChunks.length === 0 && !capturedText) {
-          this.releaseAudioFocus();
-          this.setStatus('idle');
-          this.updateMicStatusBadge('active');
-          return;
-        }
-
-        const blob = new Blob(this.audioChunks, { type: this.mediaRecorder.mimeType || 'audio/webm' });
-        this.audioChunks = [];
-        this.setStatus('thinking');
-        this.updateMicStatusBadge('active');
-
-        const liveText = document.getElementById('chat-live-speech-text');
-        if (liveText) liveText.textContent = "⚡ Processing your voice...";
-
-        // If live continuous speech somehow already provided text, use it immediately
-        if (capturedText && capturedText.length > 2 && !capturedText.match(/^(stop|done|that's it|enough)$/i)) {
-          console.log('[Dio Voice] Using Live Speech result:', capturedText);
-          this.handleVoiceInput(capturedText);
-          return;
-        }
-
-        // Fast high-accuracy Whisper transcription with prompt guidance
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          try {
-            const base64Data = reader.result.split(',')[1];
-            const avalaiKey = localStorage.getItem('avalai_key') || '';
-            
-            if (window.electronAPI && window.electronAPI.transcribeAudio) {
-              const res = await window.electronAPI.transcribeAudio({
-                audioBase64: base64Data,
-                mimeType: blob.type,
-                apiKey: avalaiKey,
-                model: 'whisper-1',
-                prompt: 'Hey Dio, voice query, desktop assistant command, open apps, system control'
-              });
-
-              if (res && res.ok && res.text) {
-                const text = res.text.trim();
-                console.log('[Dio Voice] Live Voice Transcribed:', text);
-                
-                // Conversational exit detection
-                if (text.match(/\b(bye|goodbye|see you|stop listening|shut up|nevermind|exit|dismiss|cancel)\b/i)) {
-                  this.isLiveConversationMode = false;
-                  this.renderMessage('assistant', "👋 Talk to you later bro! Going to sleep.");
-                  this.speak("Talk to you later bro!");
-                  if (window.islandApp) window.islandApp.collapse();
-                  return;
-                }
-
-                if (text && !text.match(/^(\.|\?|BEEP|you)$/i)) {
-                  this.handleVoiceInput(text);
-                  return;
-                }
-              }
-            }
-          } catch (err) {
-            console.warn('[Dio Voice] Transcription error:', err);
-          }
-          this.releaseAudioFocus();
-          this.setStatus('idle');
-          if (this.isLiveConversationMode) {
-            // Re-arm microphone if audio was empty or noisy
-            setTimeout(() => {
-              if (this.isLiveConversationMode && !this.isRecording && !this.isThinking) {
-                this.startVoiceRecording();
-              }
-            }, 500);
-          }
-        };
-        reader.readAsDataURL(blob);
-      };
-
-      this.mediaRecorder.start(250);
+      source.connect(this.voiceProcessor);
+      if (!this._silentGain) {
+        this._silentGain = this.audioContext.createGain();
+        this._silentGain.gain.value = 0;
+        this._silentGain.connect(this.audioContext.destination);
+      }
+      this.voiceProcessor.connect(this._silentGain);
 
       // Start live wave visualizer & client-side real-time VAD loop
       this.animateLiveWaveform();
@@ -380,6 +320,16 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
       this._tapToStopListener = null;
     }
 
+    if (this.animFrameId) {
+      cancelAnimationFrame(this.animFrameId);
+      this.animFrameId = null;
+    }
+
+    if (this.voiceProcessor) {
+      try { this.voiceProcessor.disconnect(); } catch (e) {}
+      this.voiceProcessor = null;
+    }
+
     // Stop live recognition
     if (this.liveSpeechRec) {
       try { this.liveSpeechRec.stop(); } catch (e) {}
@@ -398,17 +348,132 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
       chatInput.placeholder = "Ask Dio, or say 'Hey Dio'...";
     }
 
-    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      try {
-        this.mediaRecorder.stop();
-      } catch (e) {}
-    }
+    // Process the sliced recording immediately!
+    this.processRecordedAudio();
 
     setTimeout(() => {
       if (this.wakeWordEnabled && !this.isRecording && !this.isThinking) {
         this.startContinuousSpeechWakeListener();
       }
     }, 800);
+  }
+
+  async processRecordedAudio() {
+    const chatInput = document.getElementById('chat-input');
+    const capturedText = (this.latestLiveTranscript || (chatInput ? chatInput.value : '')).trim();
+
+    // If live continuous speech already provided text, use it immediately
+    if (capturedText && capturedText.length > 2 && !capturedText.match(/^(stop|done|that's it|enough)$/i)) {
+      console.log('[Dio Voice] Using Live Speech result:', capturedText);
+      this.handleVoiceInput(capturedText);
+      return;
+    }
+
+    // Extract exact speech segment from PCM buffer
+    let selectedChunks = this.voicePcmChunks || [];
+    if (this.speechDetectedStart > 0 && this.voicePcmTimestamps && this.voicePcmTimestamps.length > 0) {
+      const marginPre = 200; // 200ms pre-roll to preserve start of first word
+      const marginPost = 150; // 150ms post-roll to preserve end of last word
+      const targetStart = this.speechDetectedStart - marginPre;
+      const targetEnd = (this.speechDetectedEnd || Date.now()) + marginPost;
+
+      let startIdx = 0;
+      for (let i = 0; i < this.voicePcmTimestamps.length; i++) {
+        if (this.voicePcmTimestamps[i] >= targetStart) {
+          startIdx = Math.max(0, i - 1);
+          break;
+        }
+      }
+      let endIdx = this.voicePcmChunks.length - 1;
+      for (let i = this.voicePcmTimestamps.length - 1; i >= 0; i--) {
+        if (this.voicePcmTimestamps[i] <= targetEnd) {
+          endIdx = Math.min(this.voicePcmChunks.length - 1, i + 1);
+          break;
+        }
+      }
+      if (endIdx >= startIdx) {
+        selectedChunks = this.voicePcmChunks.slice(startIdx, endIdx + 1);
+      }
+    }
+
+    let totalSamples = 0;
+    for (let i = 0; i < selectedChunks.length; i++) {
+      totalSamples += selectedChunks[i].length;
+    }
+
+    // If less than 220ms of audio, ignore (just a breath or click)
+    if (totalSamples < 16000 * 0.22) {
+      this.releaseAudioFocus();
+      this.setStatus('idle');
+      this.updateMicStatusBadge('active');
+      return;
+    }
+
+    const mergedSamples = new Float32Array(totalSamples);
+    let offset = 0;
+    for (let i = 0; i < selectedChunks.length; i++) {
+      mergedSamples.set(selectedChunks[i], offset);
+      offset += selectedChunks[i].length;
+    }
+
+    const wavBlob = this.encodeWAVBlob(mergedSamples, 16000);
+    const audioSec = (totalSamples / 16000).toFixed(2);
+    console.log(`[Dio Voice] Submitting ultra-fast sliced WAV: ${audioSec}s (${(wavBlob.size / 1024).toFixed(1)} KB)`);
+
+    this.setStatus('thinking');
+    this.updateMicStatusBadge('active');
+
+    const liveText = document.getElementById('chat-live-speech-text');
+    if (liveText) liveText.textContent = "⚡ Processing your voice...";
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      try {
+        const base64Data = reader.result.split(',')[1];
+        const avalaiKey = localStorage.getItem('avalai_key') || '';
+        
+        if (window.electronAPI && window.electronAPI.transcribeAudio) {
+          const res = await window.electronAPI.transcribeAudio({
+            audioBase64: base64Data,
+            mimeType: 'audio/wav',
+            apiKey: avalaiKey,
+            model: 'whisper-1',
+            prompt: 'Hey Dio, voice query, desktop assistant command, open apps, system control'
+          });
+
+          if (res && res.ok && res.text) {
+            const text = res.text.trim();
+            console.log('[Dio Voice] Transcribed in ~1.1s:', text);
+            
+            // Conversational exit detection
+            if (text.match(/\b(bye|goodbye|see you|stop listening|shut up|nevermind|exit|dismiss|cancel)\b/i)) {
+              this.isLiveConversationMode = false;
+              this.renderMessage('assistant', "👋 Talk to you later bro! Going to sleep.");
+              this.speak("Talk to you later bro!");
+              if (window.islandApp) window.islandApp.collapse();
+              return;
+            }
+
+            if (text && !text.match(/^(\.|\?|BEEP|you)$/i)) {
+              this.handleVoiceInput(text);
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Dio Voice] Transcription error:', err);
+      }
+      this.releaseAudioFocus();
+      this.setStatus('idle');
+      if (this.isLiveConversationMode) {
+        setTimeout(() => {
+          if (this.isLiveConversationMode && !this.isRecording && !this.isThinking) {
+            this.startVoiceRecording();
+          }
+        }, 500);
+      }
+    };
+    reader.readAsDataURL(wavBlob);
   }
 
   toggleVoiceRecording() {
@@ -449,7 +514,7 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
     let speechStartTime = 0;
     let lastVoiceDetectedTime = 0;
     let noiseFloor = 6;
-    const vadSilenceThresholdMs = 700; // 700ms silence after speech -> auto-submit hands-free!
+    const vadSilenceThresholdMs = 360; // 360ms fast silence threshold for instant hands-free submission!
 
     const update = () => {
       if (!this.isRecording || !this.analyser) return;
@@ -481,15 +546,17 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
       }
 
       // Voice Activity Detection: detects when human voice speaks
-      const isVoiceActive = (voiceBandAvg > noiseFloor + 9) || (maxVoiceBin > 42);
+      const isVoiceActive = (voiceBandAvg > noiseFloor + 8) || (maxVoiceBin > 40);
 
       if (isVoiceActive) {
         if (!userHasSpoken) {
           userHasSpoken = true;
           speechStartTime = now;
+          this.speechDetectedStart = now;
           this.setStatus('listening');
         }
         lastVoiceDetectedTime = now;
+        this.speechDetectedEnd = now;
         const statusEl = document.getElementById('chat-live-speech-text');
         if (statusEl) statusEl.textContent = "🎙️ Dio is hearing you speak...";
       } else {
@@ -497,9 +564,9 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
           const silenceDuration = now - lastVoiceDetectedTime;
           const totalSpeechDuration = now - speechStartTime;
 
-          // If user spoke for at least 300ms and has paused for 700ms:
-          if (silenceDuration > vadSilenceThresholdMs && totalSpeechDuration >= 300) {
-            console.log(`[Dio Live VAD] Speech pause detected (${silenceDuration}ms silence). Hands-free auto-submitting!`);
+          // If user spoke for at least 260ms and has paused for 360ms:
+          if (silenceDuration > vadSilenceThresholdMs && totalSpeechDuration >= 260) {
+            console.log(`[Dio Live VAD] Fast pause detected (${silenceDuration}ms silence). Hands-free auto-submitting!`);
             userHasSpoken = false;
             const statusEl = document.getElementById('chat-live-speech-text');
             if (statusEl) statusEl.textContent = "⚡ Processing your voice...";
@@ -507,9 +574,9 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
             return;
           }
         } else if (this.isLiveConversationMode) {
-          // If in continuous conversational mode and no speech occurred for 12 seconds:
-          if (now - this.recordingStartTime > 12000) {
-            console.log('[Dio Live VAD] Conversation session idle timeout (12s). Returning to sleep.');
+          // If in continuous conversational mode and no speech occurred for 10 seconds:
+          if (now - this.recordingStartTime > 10000) {
+            console.log('[Dio Live VAD] Conversation session idle timeout (10s). Returning to sleep.');
             this.isLiveConversationMode = false;
             this.stopVoiceRecording();
             if (window.islandApp) window.islandApp.collapse();
@@ -1022,11 +1089,16 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
         return;
       }
 
-      // Truncate to first 3 sentences for natural snappy dialogue
-      const sentences = cleanText.split(/(?<=[.?!])\s+/);
-      if (sentences.length > 3) {
-        cleanText = sentences.slice(0, 3).join(' ');
+      // Ultra-fast speech slice: prioritize punchy first sentence (capped at 115 chars) for sub-2.0s TTS generation
+      const sentences = cleanText.split(/(?<=[.?!])\s+/).filter(s => s && s.trim());
+      let voiceSpeechText = sentences[0] || cleanText;
+      if (voiceSpeechText.length < 45 && sentences.length > 1) {
+        voiceSpeechText = `${sentences[0]} ${sentences[1]}`;
       }
+      if (voiceSpeechText.length > 115) {
+        voiceSpeechText = voiceSpeechText.slice(0, 110).replace(/[,\s]+[^,\s]*$/, '') + '.';
+      }
+      cleanText = voiceSpeechText.trim();
 
       // 1. Try Native Audio Speech Player (Aval AI Nova TTS played via ffplay to PipeWire HDMI, or spd-say)
       const avalaiKey = localStorage.getItem('avalai_key') || '';
@@ -1833,7 +1905,7 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
     ];
 
     if (window.electronAPI && window.electronAPI.callAvalAI) {
-      const res = await window.electronAPI.callAvalAI({ apiKey, model: targetModel, messages });
+      const res = await window.electronAPI.callAvalAI({ apiKey, model: targetModel, messages, max_tokens: 65, temperature: 0.35 });
       if (res.ok && res.data && res.data.choices && res.data.choices[0]) {
         return res.data.choices[0].message.content;
       }
@@ -1845,7 +1917,7 @@ Keep answers snappy, charismatic, and conversational for real-time text-to-speec
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
         },
-        body: JSON.stringify({ model: targetModel, messages })
+        body: JSON.stringify({ model: targetModel, messages, max_tokens: 65, temperature: 0.35 })
       });
       const data = await resp.json();
       return data.choices[0].message.content;
