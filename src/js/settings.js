@@ -48,7 +48,8 @@ class SettingsManager {
 
     // AI Provider
     const providerSelect = document.getElementById('setting-ai-provider');
-    const savedProvider = localStorage.getItem('ai_provider') || 'avalai';
+    const avalKeyVal = localStorage.getItem('avalai_key') || '';
+    const savedProvider = localStorage.getItem('ai_provider') || (avalKeyVal ? 'avalai' : 'custom');
     if (providerSelect) {
       providerSelect.value = savedProvider;
       this.updateProviderVisibility(savedProvider);
@@ -77,6 +78,7 @@ class SettingsManager {
     const customModel = document.getElementById('setting-custom-model');
     if (customEndpoint) customEndpoint.value = localStorage.getItem('custom_endpoint') || 'http://localhost:11434/v1/chat/completions';
     if (customModel) customModel.value = localStorage.getItem('custom_model') || 'llama3.2:3b';
+    this.populateLocalModels();
 
     // Notion
     const notionTok = document.getElementById('setting-notion-token');
@@ -142,6 +144,34 @@ class SettingsManager {
     if (grpOr) grpOr.style.display = provider === 'openrouter' ? 'flex' : 'none';
     if (grpGem) grpGem.style.display = provider === 'gemini' ? 'flex' : 'none';
     if (grpCustom) grpCustom.style.display = provider === 'custom' ? 'flex' : 'none';
+  }
+
+  async populateLocalModels() {
+    const customModel = document.getElementById('setting-custom-model');
+    if (!customModel) return;
+    try {
+      const res = await fetch('http://127.0.0.1:11434/api/tags');
+      if (res.ok) {
+        const data = await res.json();
+        const models = (data.models || []).map(m => m.name);
+        if (models.length > 0) {
+          const currentVal = localStorage.getItem('custom_model') || 'llama3.2:3b';
+          customModel.innerHTML = '';
+          models.forEach(mod => {
+            const opt = document.createElement('option');
+            opt.value = mod;
+            let label = mod;
+            if (mod.includes('llama3.2')) label += ' (Meta - Fast & Agentic)';
+            else if (mod.includes('gemma')) label += ' (Google Gemma 2)';
+            opt.textContent = label;
+            customModel.appendChild(opt);
+          });
+          if (models.includes(currentVal)) {
+            customModel.value = currentVal;
+          }
+        }
+      }
+    } catch (e) {}
   }
 
   setupListeners() {

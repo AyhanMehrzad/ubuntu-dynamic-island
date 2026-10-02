@@ -1334,7 +1334,9 @@ CRITICAL LIVE VOICE RESPONSE RULES:
     // Add to history
     this.history.push({ role: 'user', content: queryText });
 
-    const provider = localStorage.getItem('ai_provider') || 'avalai';
+    const savedProvider = localStorage.getItem('ai_provider');
+    const avalaiKey = localStorage.getItem('avalai_key') || '';
+    const provider = savedProvider || (avalaiKey ? 'avalai' : 'custom');
 
     try {
       let assistantReply = '';
@@ -1352,22 +1354,14 @@ CRITICAL LIVE VOICE RESPONSE RULES:
         const apiKey = localStorage.getItem('avalai_key') || '';
         const model = localStorage.getItem('avalai_model') || 'gpt-4o-mini';
         if (!apiKey) {
-          // If no Aval AI key is set, try local RTX 4050 model first
-          try {
-            assistantReply = await this.callCustomAPI(null, queryText, desktopContext);
-          } catch (e) {
-            assistantReply = await this.callAvalAI(apiKey, model, queryText, attachment, desktopContext);
-          }
+          // If no Aval AI key is set, directly use local RTX 4050 model (never ask for API key)
+          assistantReply = await this.callCustomAPI(null, queryText, desktopContext);
         } else {
           try {
             assistantReply = await this.callAvalAI(apiKey, model, queryText, attachment, desktopContext);
           } catch (e) {
             console.warn('AvalAI call failed, falling back to local RTX 4050 Ollama model:', e.message);
-            try {
-              assistantReply = await this.callCustomAPI(null, queryText, desktopContext);
-            } catch (localErr) {
-              throw e;
-            }
+            assistantReply = await this.callCustomAPI(null, queryText, desktopContext);
           }
         }
       } else if (provider === 'openrouter') {
@@ -1379,11 +1373,15 @@ CRITICAL LIVE VOICE RESPONSE RULES:
         const model = localStorage.getItem('gemini_model') || 'gemini-2.0-flash';
         assistantReply = await this.callGeminiAPI(apiKey, model, queryText, attachment, desktopContext);
       } else if (provider === 'custom') {
-        const endpoint = localStorage.getItem('custom_endpoint');
+        const endpoint = localStorage.getItem('custom_endpoint') || 'http://localhost:11434/v1/chat/completions';
         assistantReply = await this.callCustomAPI(endpoint, queryText, desktopContext);
       } else {
-        // Built-in intelligent assistant
-        assistantReply = this.generateBuiltinResponse(queryText, desktopContext);
+        // Built-in offline assistant: check if local GPU model is running first
+        try {
+          assistantReply = await this.callCustomAPI(null, queryText, desktopContext);
+        } catch (e) {
+          assistantReply = this.generateBuiltinResponse(queryText, desktopContext);
+        }
       }
 
       // Check if LLM output suggested a terminal command or action
@@ -1824,7 +1822,7 @@ CRITICAL LIVE VOICE RESPONSE RULES:
     if (lower.includes('help') || lower.includes('what can you do')) {
       return `Here is what I can do for you, ${salutation}:\n• Say **'Hey Dio'** hands-free to awaken me\n• 'Switch to Antigravity' or 'Tell Antigravity to run build'\n• 'Search for [topic]' for instant live web facts\n• 'What window is active?' or 'What's playing?'\n• 'Mute and open Chrome' or compound commands\n• Multi-turn reasoning powered by Aval AI, OpenRouter & Gemini!`;
     }
-    return `Got it ${salutation}: "${query}". I am ready for your next command or desktop task. For advanced generative reasoning, ensure your Aval AI or OpenRouter API key is active in Settings!`;
+    return `Got it ${salutation}: "${query}". I am active and ready for your next command or desktop task.`;
   }
 
   async callOpenRouterAPI(apiKey, model, userText, imageAttachment = null, desktopContext = null) {

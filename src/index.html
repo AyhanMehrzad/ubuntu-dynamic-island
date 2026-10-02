@@ -654,10 +654,10 @@
                   <div class="setting-desc">Choose which AI provider powers Dio agent reasoning and tools</div>
                 </div>
                 <select id="setting-ai-provider" class="select-input">
-                  <option value="avalai">⚡ Aval AI (Ultra-Fast Iranian Gateway & Global Models) ★ Favorite</option>
+                  <option value="custom">🚀 Local Offline AI (Ollama + RTX 4050 GPU) - Zero Latency ★ Recommended</option>
+                  <option value="avalai">⚡ Aval AI (Ultra-Fast Iranian Gateway & Global Models)</option>
                   <option value="openrouter">OpenRouter API (Xiaomi MiMo, Claude, DeepSeek, Free)</option>
                   <option value="gemini">Google Gemini API (Gemini 3.8 Flash, 1.5 Pro)</option>
-                  <option value="custom">🚀 Local Offline AI (Ollama + RTX 4050 GPU) - Zero Latency</option>
                   <option value="builtin">Built-in Offline System Agent</option>
                 </select>
               </div>
@@ -748,7 +748,10 @@
                 </div>
                 <div style="display: flex; gap: 8px;">
                   <input type="text" id="setting-custom-endpoint" class="form-input" style="flex: 2;" placeholder="http://localhost:11434/v1/chat/completions">
-                  <input type="text" id="setting-custom-model" class="form-input" style="flex: 1;" placeholder="llama3.2:3b">
+                  <select id="setting-custom-model" class="select-input" style="flex: 1;">
+                    <option value="llama3.2:3b">llama3.2:3b (Meta Flagship - Fast & Agentic)</option>
+                    <option value="gemma2:2b">gemma2:2b (Google Gemma 2 - Lightweight)</option>
+                  </select>
                 </div>
                 <div style="display: flex; gap: 8px;">
                   <button type="button" id="btn-test-custom-endpoint" class="mini-btn" style="flex: 1; background: var(--bg-surface); border: 1px solid var(--border-subtle);">Test Local Model (Ollama)</button>

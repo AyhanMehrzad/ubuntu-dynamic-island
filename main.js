@@ -1413,7 +1413,10 @@ ipcMain.handle('ai:gemini', async (event, { apiKey, model, contents, systemInstr
 
 ipcMain.handle('ai:custom', async (event, { endpoint, apiKey, model, messages, max_tokens, temperature } = {}) => {
   try {
-    const targetEndpoint = endpoint || 'http://localhost:11434/v1/chat/completions';
+    let targetEndpoint = (endpoint || 'http://127.0.0.1:11434/v1/chat/completions').trim();
+    if (targetEndpoint.includes('//localhost:')) {
+      targetEndpoint = targetEndpoint.replace('//localhost:', '//127.0.0.1:');
+    }
     const headers = { 'Content-Type': 'application/json' };
     if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
@@ -1426,11 +1429,16 @@ ipcMain.handle('ai:custom', async (event, { endpoint, apiKey, model, messages, m
       body.max_tokens = max_tokens;
     }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 18000);
+
     const res = await fetch(targetEndpoint, {
       method: 'POST',
       headers,
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: controller.signal
     });
+    clearTimeout(timeout);
 
     const data = await res.json();
     return { ok: res.ok, status: res.status, data };
